@@ -12,6 +12,7 @@ Supported providers:
 import os
 import re
 import json
+import socket
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import urllib.request
@@ -231,6 +232,41 @@ class OllamaClient(LLMClient):
                 f"Ollama not running. Start with: ollama serve"
             )
 
+    def _is_model_loaded(self) -> bool:
+        """Check if the model is currently loaded in memory."""
+        try:
+            req = urllib.request.Request(f"{self.host}/api/ps")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                loaded_models = [m.get('name', '') for m in data.get('models', [])]
+                # Check if our model (or a variant of it) is loaded
+                return any(self.model in m or m in self.model for m in loaded_models)
+        except (urllib.error.URLError, json.JSONDecodeError):
+            return False
+
+    def warmup(self) -> None:
+        """Pre-load the model with a tiny request. Call this before generate() for faster response."""
+        if self._is_model_loaded():
+            return  # Model already loaded, skip warmup
+
+        # Send minimal prompt to trigger model loading
+        url = f"{self.host}/api/generate"
+        payload = {
+            "model": self.model,
+            "prompt": "hi",
+            "stream": False,
+            "options": {"num_predict": 1},  # Generate just 1 token
+            "keep_alive": "10m",  # Keep model loaded for 10 minutes
+        }
+
+        try:
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=180) as response:
+                pass  # Just wait for model to load
+        except (urllib.error.URLError, urllib.error.HTTPError):
+            pass  # If warmup fails, main generate will handle the error
+
     def _call_api(self, prompt: str) -> dict:
         """Make a single API call to Ollama."""
         url = f"{self.host}/api/generate"
@@ -240,6 +276,7 @@ class OllamaClient(LLMClient):
             "prompt": prompt,
             "system": SYSTEM_PROMPT,  # System prompt for Ollama
             "stream": False,
+            "keep_alive": "10m",  # Keep model loaded for 10 minutes between runs
             "options": {
                 "temperature": 0.4,
                 "num_predict": 1000,
@@ -253,7 +290,7 @@ class OllamaClient(LLMClient):
             headers={"Content-Type": "application/json"}
         )
 
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req, timeout=180) as response:
             return json.loads(response.read().decode('utf-8'))
 
     def generate(self, prompt: str) -> LLMResponse:
@@ -294,16 +331,22 @@ class OllamaClient(LLMClient):
                     raise LLMError(f"Model '{self.model}' not found. Run: ollama pull {self.model}")
                 raise LLMError(f"Ollama error ({e.code}): {e.reason}")
             except urllib.error.URLError as e:
+                # URLError can wrap socket.timeout
+                if isinstance(e.reason, socket.timeout):
+                    raise LLMError(
+                        f"Request timed out after 3 minutes. Try a smaller model:\n"
+                        f"  cm -m llama3.2:3b"
+                    )
                 if "Connection refused" in str(e):
                     raise LLMError(f"Ollama not running. Start with: ollama serve")
                 raise LLMError(f"Ollama request failed: {e}")
+            except socket.timeout:
+                raise LLMError(
+                    f"Request timed out after 3 minutes. Try a smaller model:\n"
+                    f"  cm -m llama3.2:3b"
+                )
             except json.JSONDecodeError:
                 raise LLMError("Invalid response from Ollama")
-            except TimeoutError:
-                raise LLMError(
-                    f"Request timed out. Model '{self.model}' may need to be pulled.\n"
-                    f"Run: ollama pull {self.model}"
-                )
 
         # Should not reach here
         raise LLMError(f"Failed after {self.MAX_RETRIES} retries: {last_error}")
