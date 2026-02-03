@@ -60,14 +60,7 @@ def validate_commit_message(content: str) -> tuple[bool, str]:
 
 @dataclass
 class LLMResponse:
-    """
-    Structured response from any LLM provider.
-    
-    Why wrap the response?
-    - Unified interface across providers
-    - Easy to add metadata (tokens, latency)
-    - Simpler to mock in tests
-    """
+    """Structured response from any LLM provider."""
     content: str
     model: str = ""
     tokens_used: int = 0
@@ -79,38 +72,20 @@ class LLMError(Exception):
 
 
 class LLMClient(ABC):
-    """
-    Abstract base for LLM clients.
-    
-    Why ABC over Protocol?
-    - We want to enforce implementation
-    - Clearer error messages if methods missing
-    - Can add shared helper methods later
-    """
-    
+    """Abstract base for LLM clients."""
+
     @abstractmethod
     def generate(self, prompt: str) -> LLMResponse:
-        """Generate a response from the prompt."""
         pass
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
-        """Human-readable provider name."""
         pass
 
 
-# =============================================================================
-# Claude (Anthropic) Client
-# =============================================================================
-
 class ClaudeClient(LLMClient):
-    """
-    Claude API client via Anthropic SDK.
-
-    Best for: Production use, highest quality
-    Requires: ANTHROPIC_API_KEY environment variable
-    """
+    """Claude API client. Requires ANTHROPIC_API_KEY env var."""
 
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
     MAX_TOKENS = 1000  # Increased for detailed commit messages
@@ -185,26 +160,11 @@ class ClaudeClient(LLMClient):
             except APIError as e:
                 raise LLMError(f"Claude API error: {e.message}")
 
-        # Should not reach here, but just in case
         raise LLMError(f"Failed after {self.MAX_RETRIES} retries: {last_error}")
 
 
-# =============================================================================
-# Ollama Client (Local models)
-# =============================================================================
-
 class OllamaClient(LLMClient):
-    """
-    Ollama client for local model inference.
-
-    Best for: Free usage, privacy, offline work
-    Requires: Ollama running locally (ollama serve)
-
-    Recommended models for commit messages:
-    - llama3.2:3b    (fastest, ~2GB RAM)
-    - mistral:7b     (balanced, ~4GB RAM)
-    - qwen2.5-coder:7b (code-optimized, ~4GB RAM)
-    """
+    """Ollama client for local models. Requires: ollama serve"""
 
     DEFAULT_MODEL = "mistral:7b"
     DEFAULT_HOST = "http://localhost:11434"
@@ -352,44 +312,28 @@ class OllamaClient(LLMClient):
         raise LLMError(f"Failed after {self.MAX_RETRIES} retries: {last_error}")
 
 
-# =============================================================================
-# Factory function
-# =============================================================================
+# Provider registry
+PROVIDERS = {
+    "claude": ClaudeClient,
+    "ollama": OllamaClient,
+}
+
+# Auto-detect order (try free/local first)
+AUTO_DETECT_ORDER = [OllamaClient, ClaudeClient]
+
 
 def get_client(provider: str = "auto", model: str | None = None) -> LLMClient:
-    """
-    Get an LLM client for the specified provider.
-    
-    Args:
-        provider: 'claude', 'ollama', or 'auto' (tries ollama first, then claude)
-        model: Override the default model for the provider
-        
-    Returns:
-        Configured LLMClient instance
-    
-    Examples:
-        client = get_client()  # Auto-detect
-        client = get_client("ollama", "mistral:7b")
-        client = get_client("claude")
-    """
-    if provider == "claude":
-        return ClaudeClient(model=model)
-    
-    if provider == "ollama":
-        return OllamaClient(model=model)
-    
+    """Get an LLM client. Provider can be 'claude', 'ollama', or 'auto'."""
+    if provider in PROVIDERS:
+        return PROVIDERS[provider](model=model)
+
     if provider == "auto":
-        # Try Ollama first (free), fall back to Claude
-        try:
-            return OllamaClient(model=model)
-        except LLMError:
-            pass
-        
-        try:
-            return ClaudeClient(model=model)
-        except LLMError:
-            pass
-        
+        for client_class in AUTO_DETECT_ORDER:
+            try:
+                return client_class(model=model)
+            except LLMError:
+                continue
+
         raise LLMError(
             "No LLM provider available.\n\n"
             "Option 1 - Use Ollama (free, local):\n"
@@ -399,50 +343,5 @@ def get_client(provider: str = "auto", model: str | None = None) -> LLMClient:
             "Option 2 - Use Claude API:\n"
             "  export ANTHROPIC_API_KEY='your-key-here'"
         )
-    
+
     raise LLMError(f"Unknown provider: {provider}. Use 'claude', 'ollama', or 'auto'.")
-
-
-# =============================================================================
-# CLI test
-# =============================================================================
-
-if __name__ == "__main__":
-    import sys
-    
-    print("LLM Client Test")
-    print("=" * 40)
-    
-    # Parse optional provider argument
-    provider = sys.argv[1] if len(sys.argv) > 1 else "auto"
-    model = sys.argv[2] if len(sys.argv) > 2 else None
-    
-    print(f"Provider: {provider}")
-    if model:
-        print(f"Model: {model}")
-    print()
-    
-    try:
-        client = get_client(provider, model)
-        print(f"✓ Connected to {client.name}")
-        
-        # Simple test prompt
-        test_prompt = """Write a commit message for this change:
-- Added hello.py that prints "Hello, World!"
-
-Output only the commit message in this format:
-type(scope): subject
-
-- bullet point"""
-        
-        print("\nGenerating test message...")
-        response = client.generate(test_prompt)
-        
-        print(f"\n✓ Response ({response.tokens_used} tokens):")
-        print("-" * 40)
-        print(response.content)
-        print("-" * 40)
-        
-    except LLMError as e:
-        print(f"✗ Error: {e}")
-        sys.exit(1)

@@ -101,51 +101,53 @@ The scope in type(scope) should be:
     def _build_format_section(self, config: PromptConfig) -> str:
         """Specify the exact output format we want."""
         max_len = config.max_subject_length
+        is_simple = config.style == "simple"
 
-        # Style-specific format
-        if config.style == "simple":
+        # Format description
+        if is_simple:
             format_desc = f"subject line (imperative mood, max {max_len} chars)"
             type_instruction = "\nUse a simple, direct subject line without type prefixes."
-        elif config.style == "detailed":
+        else:
             format_desc = f"type(scope): subject line (imperative mood, max {max_len} chars)"
-            if config.forced_type:
-                type_instruction = f"\nIMPORTANT: Use type '{config.forced_type}' for this commit."
-            else:
-                types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
-                type_instruction = f"\nChoose the most appropriate type:\n{types_list}"
-        else:  # conventional (default)
-            format_desc = f"type(scope): subject line (imperative mood, max {max_len} chars)"
-            if config.forced_type:
-                type_instruction = f"\nIMPORTANT: Use type '{config.forced_type}' for this commit."
-            else:
-                types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
-                type_instruction = f"\nChoose the most appropriate type:\n{types_list}"
+            type_instruction = self._build_type_instruction(config.forced_type)
 
-        # Body instructions (only if include_body is True)
-        if config.include_body:
-            fc = config.file_count
-            if config.style == "detailed":
-                # Detailed style gets more bullets
-                if fc >= 15:
-                    bullet_instruction = f"REQUIRED: Write exactly 6-8 bullets for this large change ({fc} files)."
-                elif fc >= 8:
-                    bullet_instruction = f"REQUIRED: Write exactly 5-6 bullets for this change ({fc} files)."
-                elif fc >= 4:
-                    bullet_instruction = f"Write 4-5 bullets for this change ({fc} files)."
-                else:
-                    bullet_instruction = f"Write 2-3 bullets for this change ({fc} files)."
-            else:
-                # Conventional/simple style
-                if fc >= 15:
-                    bullet_instruction = f"REQUIRED: Write exactly 5-6 bullets for this large change ({fc} files)."
-                elif fc >= 8:
-                    bullet_instruction = f"REQUIRED: Write exactly 4-5 bullets for this change ({fc} files)."
-                elif fc >= 4:
-                    bullet_instruction = f"Write 3-4 bullets for this change ({fc} files)."
-                else:
-                    bullet_instruction = f"Write 1-2 bullets for this small change ({fc} files)."
+        # Body section
+        body_section = self._build_body_section(config) if config.include_body else \
+            "\nDo NOT include a body or bullet points. Subject line only."
 
-            body_section = f"""
+        return f"""<format>
+                Write commit messages in this exact format:
+
+                {format_desc}
+                {body_section}
+
+                {type_instruction}
+                </format>"""
+
+    def _build_type_instruction(self, forced_type: str | None) -> str:
+        """Build the type selection instruction."""
+        if forced_type:
+            return f"\nIMPORTANT: Use type '{forced_type}' for this commit."
+        types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
+        return f"\nChoose the most appropriate type:\n{types_list}"
+
+    def _build_body_section(self, config: PromptConfig) -> str:
+        """Build the bullet point instructions based on file count and style."""
+        fc = config.file_count
+
+        # Bullet counts: (threshold, detailed_range, standard_range)
+        # Detailed style gets more bullets at each tier
+        if config.style == "detailed":
+            bullets = self._get_bullet_range(fc, thresholds=[(15, "6-8"), (8, "5-6"), (4, "4-5"), (0, "2-3")])
+        else:
+            bullets = self._get_bullet_range(fc, thresholds=[(15, "5-6"), (8, "4-5"), (4, "3-4"), (0, "1-2")])
+
+        # Large changes (8+ files) are required, smaller are suggested
+        prefix = "REQUIRED: Write exactly" if fc >= 8 else "Write"
+        suffix = "for this large change" if fc >= 15 else "for this change" if fc >= 4 else "for this small change"
+        bullet_instruction = f"{prefix} {bullets} bullets {suffix} ({fc} files)."
+
+        return f"""
 - bullet points explaining the changes
 
 {bullet_instruction}
@@ -154,17 +156,13 @@ Each bullet should:
 - Be a complete thought (10-20 words)
 - Explain WHAT changed and WHY
 - Mention specific files, components, or functions by name"""
-        else:
-            body_section = "\nDo NOT include a body or bullet points. Subject line only."
 
-        return f"""<format>
-Write commit messages in this exact format:
-
-{format_desc}
-{body_section}
-
-{type_instruction}
-</format>"""
+    def _get_bullet_range(self, file_count: int, thresholds: list[tuple[int, str]]) -> str:
+        """Get bullet range string based on file count and thresholds."""
+        for threshold, range_str in thresholds:
+            if file_count >= threshold:
+                return range_str
+        return thresholds[-1][1]  # fallback to last
     
     def _build_examples_section(self, config: PromptConfig) -> str:
         """Provide few-shot examples of good commit messages."""
