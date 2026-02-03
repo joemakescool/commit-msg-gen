@@ -26,6 +26,11 @@ class PromptConfig:
     num_options: int = 1             # How many messages to generate
     file_count: int = 0              # Number of files changed (for bullet scaling)
 
+    # From user config
+    style: str = "conventional"      # "conventional", "simple", "detailed"
+    include_body: bool = True        # Include bullet points
+    max_subject_length: int = 50     # Max chars for subject line
+
 
 class PromptBuilder:
     """
@@ -55,7 +60,7 @@ class PromptBuilder:
         sections = [
             self._build_role_section(),
             self._build_format_section(config),
-            self._build_examples_section(),
+            self._build_examples_section(config),
             self._build_diff_section(diff),
             self._build_hints_section(config),
             self._build_analysis_section(),
@@ -95,44 +100,129 @@ The scope in type(scope) should be:
     
     def _build_format_section(self, config: PromptConfig) -> str:
         """Specify the exact output format we want."""
-        type_instruction = ""
-        if config.forced_type:
-            type_instruction = f"\nIMPORTANT: Use type '{config.forced_type}' for this commit."
-        else:
-            types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
-            type_instruction = f"\nChoose the most appropriate type:\n{types_list}"
-        
-        # Determine bullet count based on file count
-        fc = config.file_count
-        if fc >= 15:
-            bullet_instruction = f"REQUIRED: Write exactly 5-6 bullets for this large change ({fc} files)."
-        elif fc >= 8:
-            bullet_instruction = f"REQUIRED: Write exactly 4-5 bullets for this change ({fc} files)."
-        elif fc >= 4:
-            bullet_instruction = f"Write 3-4 bullets for this change ({fc} files)."
-        else:
-            bullet_instruction = f"Write 1-2 bullets for this small change ({fc} files)."
-        
-        return f"""<format>
-Write commit messages in this exact format:
+        max_len = config.max_subject_length
 
-type(scope): subject line (imperative mood, max 50 chars)
+        # Style-specific format
+        if config.style == "simple":
+            format_desc = f"subject line (imperative mood, max {max_len} chars)"
+            type_instruction = "\nUse a simple, direct subject line without type prefixes."
+        elif config.style == "detailed":
+            format_desc = f"type(scope): subject line (imperative mood, max {max_len} chars)"
+            if config.forced_type:
+                type_instruction = f"\nIMPORTANT: Use type '{config.forced_type}' for this commit."
+            else:
+                types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
+                type_instruction = f"\nChoose the most appropriate type:\n{types_list}"
+        else:  # conventional (default)
+            format_desc = f"type(scope): subject line (imperative mood, max {max_len} chars)"
+            if config.forced_type:
+                type_instruction = f"\nIMPORTANT: Use type '{config.forced_type}' for this commit."
+            else:
+                types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
+                type_instruction = f"\nChoose the most appropriate type:\n{types_list}"
 
+        # Body instructions (only if include_body is True)
+        if config.include_body:
+            fc = config.file_count
+            if config.style == "detailed":
+                # Detailed style gets more bullets
+                if fc >= 15:
+                    bullet_instruction = f"REQUIRED: Write exactly 6-8 bullets for this large change ({fc} files)."
+                elif fc >= 8:
+                    bullet_instruction = f"REQUIRED: Write exactly 5-6 bullets for this change ({fc} files)."
+                elif fc >= 4:
+                    bullet_instruction = f"Write 4-5 bullets for this change ({fc} files)."
+                else:
+                    bullet_instruction = f"Write 2-3 bullets for this change ({fc} files)."
+            else:
+                # Conventional/simple style
+                if fc >= 15:
+                    bullet_instruction = f"REQUIRED: Write exactly 5-6 bullets for this large change ({fc} files)."
+                elif fc >= 8:
+                    bullet_instruction = f"REQUIRED: Write exactly 4-5 bullets for this change ({fc} files)."
+                elif fc >= 4:
+                    bullet_instruction = f"Write 3-4 bullets for this change ({fc} files)."
+                else:
+                    bullet_instruction = f"Write 1-2 bullets for this small change ({fc} files)."
+
+            body_section = f"""
 - bullet points explaining the changes
-
-{type_instruction}
 
 {bullet_instruction}
 
 Each bullet should:
 - Be a complete thought (10-20 words)
 - Explain WHAT changed and WHY
-- Mention specific files, components, or functions by name
+- Mention specific files, components, or functions by name"""
+        else:
+            body_section = "\nDo NOT include a body or bullet points. Subject line only."
+
+        return f"""<format>
+Write commit messages in this exact format:
+
+{format_desc}
+{body_section}
+
+{type_instruction}
 </format>"""
     
-    def _build_examples_section(self) -> str:
+    def _build_examples_section(self, config: PromptConfig) -> str:
         """Provide few-shot examples of good commit messages."""
-        return """<examples>
+        if config.style == "simple":
+            if config.include_body:
+                return """<examples>
+Example 1 - Simple fix:
+Handle expired token gracefully
+
+- Return 401 with clear message instead of crashing
+
+Example 2 - Small feature:
+Add rate limiting to login endpoint
+
+- Limits to 5 attempts per minute per IP
+- Returns 429 with retry-after header when exceeded
+
+Example 3 - Tiny change:
+Bump lodash to 4.17.21
+
+- Fixes prototype pollution vulnerability CVE-2021-23337
+</examples>"""
+            else:
+                return """<examples>
+Example 1: Handle expired token gracefully
+Example 2: Add rate limiting to login endpoint
+Example 3: Extract query builders into separate module
+Example 4: Bump lodash to 4.17.21
+</examples>"""
+        elif config.style == "detailed":
+            return """<examples>
+Example 1 - Fix with context:
+fix(auth): handle expired token gracefully in session middleware
+
+- Return 401 with clear error message instead of throwing unhandled exception
+- Add specific error code AUTH_TOKEN_EXPIRED for client-side handling
+- Log token expiry events for security monitoring
+
+Example 2 - Feature with full detail:
+feat(api): add rate limiting to login endpoint with Redis backing
+
+- Implements sliding window rate limit of 5 attempts per minute per IP
+- Returns 429 status with Retry-After header when limit exceeded
+- Uses Redis for distributed rate limiting across multiple instances
+- Adds configuration options for limit thresholds in environment variables
+- Includes bypass mechanism for whitelisted IPs
+
+Example 3 - Refactor with rationale:
+refactor(db): extract query builders into dedicated QueryBuilder module
+
+- Moved complex SQL query construction from UserService to QueryBuilder class
+- Reduces code duplication across UserService, OrderService, and ReportService
+- Enables easier unit testing of query logic in isolation
+- Prepares codebase for upcoming pagination feature implementation
+</examples>"""
+        else:  # conventional (default)
+            if config.include_body:
+                return """<examples>
 Example 1 - Simple fix (1 bullet):
 fix(auth): handle expired token gracefully
 
@@ -164,6 +254,13 @@ Example 5 - Tiny change (1 bullet):
 chore(deps): bump lodash to 4.17.21
 
 - Fixes prototype pollution vulnerability CVE-2021-23337
+</examples>"""
+            else:
+                return """<examples>
+Example 1: fix(auth): handle expired token gracefully
+Example 2: feat(api): add rate limiting to login endpoint
+Example 3: refactor(db): extract query builders into separate module
+Example 4: chore(deps): bump lodash to 4.17.21
 </examples>"""
     
     def _build_diff_section(self, diff: ProcessedDiff) -> str:
@@ -218,7 +315,20 @@ DO NOT output this analysis. Use it internally, then output ONLY the commit mess
 
     def _build_final_instructions(self, config: PromptConfig) -> str:
         """Clear instructions for what to output."""
+        # Determine format based on style
+        if config.style == "simple":
+            format_example = "Subject line here"
+        else:
+            format_example = "type(scope): subject line"
+
         if config.num_options > 1:
+            if config.include_body:
+                body_example = "\n\n- bullet explaining implementation detail\n- bullet about code structure change"
+                body_example2 = "\n\n- bullet explaining user-facing benefit\n- bullet about problem solved"
+            else:
+                body_example = ""
+                body_example2 = ""
+
             return f"""<instructions>
 Generate exactly {config.num_options} SEPARATE commit message options.
 
@@ -229,16 +339,10 @@ Each option MUST take a meaningfully different approach:
 Format exactly like this:
 
 [Option 1]
-type(scope): technical-focused subject line
-
-- bullet explaining implementation detail
-- bullet about code structure change
+{format_example}{body_example}
 
 [Option 2]
-type(scope): impact-focused subject line
-
-- bullet explaining user-facing benefit
-- bullet about problem solved
+{format_example}{body_example2}
 
 IMPORTANT:
 - Include BOTH [Option 1] and [Option 2] labels exactly as shown
@@ -247,14 +351,16 @@ IMPORTANT:
 - No markdown, no extra explanation, no preamble
 </instructions>"""
         else:
-            return """<instructions>
+            body_rule = "- Include bullet points in the body" if config.include_body else "- Do NOT include a body, subject line only"
+            return f"""<instructions>
 Generate exactly ONE commit message.
 
 Rules:
-- Start directly with the type(scope): line
+- Start directly with the {format_example} line
 - No markdown formatting (no ```, no bold)
 - No preamble like "Here's a commit message:"
 - No explanation after the message
+{body_rule}
 - Just the raw commit message, ready to use
 </instructions>"""
 

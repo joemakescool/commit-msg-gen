@@ -83,10 +83,49 @@ Analyzing 5 files... using Ollama (gemma3:4b)... done!
 | `cm -j PROJ-123` | Add JIRA ticket to message |
 | `cm --hint "fixing login"` | Add context for better messages |
 | `cm -t fix` | Force a commit type |
-| `cm --setup` | Configure AI provider |
+| `cm -s simple` | Use simple style (no type prefix) |
+| `cm --no-body` | Generate subject line only |
+| `cm --setup` | Configure AI provider and preferences |
 | `cm --no-copy` | Print only, don't copy |
 | `cm --verbose` | Show debug info (tokens, prompt size) |
 | `cm -v` | Show version |
+
+## Configuration
+
+Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
+
+**Config file locations (checked in order):**
+1. `.cmrc` in current directory (project-specific)
+2. `.cmrc` in home directory (global default)
+
+**Example `.cmrc`:**
+```json
+{
+  "provider": "ollama",
+  "model": "gemma3:4b",
+  "style": "conventional",
+  "include_body": true,
+  "max_subject_length": 50,
+  "show_diff_stats": true
+}
+```
+
+| Setting | Options | Description |
+|---------|---------|-------------|
+| `provider` | `auto`, `ollama`, `claude` | AI provider to use |
+| `model` | any model name | Model override (e.g., `llama3.2:3b`) |
+| `style` | `conventional`, `simple`, `detailed` | Commit message format |
+| `include_body` | `true`, `false` | Include bullet points in body |
+| `max_subject_length` | number | Max chars for subject line (default: 50) |
+| `show_diff_stats` | `true`, `false` | Show file count during analysis |
+
+### Styles
+
+| Style | Format | Example |
+|-------|--------|---------|
+| `conventional` | `type(scope): subject` + bullets | `feat(api): add rate limiting` |
+| `simple` | Plain subject + bullets | `Add rate limiting to API` |
+| `detailed` | `type(scope): subject` + more bullets | Longer descriptions, more context |
 
 ## Environment Variables
 
@@ -144,13 +183,25 @@ $env:ANTHROPIC_API_KEY = "your-key"
 
 ## Message Format
 
+**Conventional (default):**
 ```
 type(scope): short subject line
 
 - What changed (the main thing)
 - Why it was needed (the problem)
-- Key implementation details
-- Side effects or related changes
+```
+
+**Simple:**
+```
+Short subject line
+
+- What changed (the main thing)
+- Why it was needed (the problem)
+```
+
+**Subject only (`--no-body`):**
+```
+type(scope): short subject line
 ```
 
 ## Project Structure

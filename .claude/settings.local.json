@@ -5,7 +5,15 @@
       "Bash(git add:*)",
       "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\commit-msg-gen\\\\test_prompt.txt\")",
       "Bash(pip install:*)",
-      "Bash(cm:*)"
+      "Bash(cm:*)",
+      "Bash(type $env:USERPROFILEDocumentsPowerShellMicrosoft.PowerShell_profile.ps1)",
+      "Bash(type $env:USERPROFILEDocumentsWindowsPowerShellMicrosoft.PowerShell_profile.ps1)",
+      "Bash(powershell -Command:*)",
+      "Bash(set)",
+      "Bash(findstr:*)",
+      "Bash(reg query \"HKCU\\\\Environment\")",
+      "Bash(reg query:*)",
+      "Bash(curl:*)"
     ]
   }
 }
