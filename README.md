@@ -20,6 +20,42 @@ pip install .
 
 > **Windows users:** If `pip` isn't recognized, use `python -m pip` instead.
 
+> **PATH issue?** If `cm` isn't recognized after install, you need to add Python Scripts to your PATH:
+>
+> **Step 1:** Find your Python Scripts path:
+> ```powershell
+> python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+> ```
+> This will output something like: `C:\Users\YourName\AppData\Local\Python\Python312\Scripts`
+>
+> **Step 2:** Add to PATH (pick one method):
+>
+> *Method A - Permanent (GUI):*
+> 1. Press `Win + R`, type `sysdm.cpl`, press Enter
+> 2. Click "Advanced" tab → "Environment Variables"
+> 3. Under "User variables", select `Path` → "Edit"
+> 4. Click "New" → paste the Scripts path from Step 1
+> 5. Click "OK" on all dialogs
+> 6. Restart your terminal
+>
+> *Method B - Permanent (PowerShell):*
+> ```powershell
+> # Get the scripts path
+> $scriptsPath = python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+>
+> # Add to your PowerShell profile (creates file if needed)
+> if (!(Test-Path $PROFILE)) { New-Item $PROFILE -Force }
+> Add-Content $PROFILE "`n`$env:PATH += `";$scriptsPath`""
+>
+> # Reload profile
+> . $PROFILE
+> ```
+>
+> **Step 3:** Verify it works:
+> ```powershell
+> cm --version
+> ```
+
 That's it. The `cm` command is now available globally.
 
 ## Quick Start
@@ -86,6 +122,9 @@ Analyzing 5 files... using Ollama (gemma3:4b)... done!
 | `cm -s simple` | Use simple style (no type prefix) |
 | `cm --no-body` | Generate subject line only |
 | `cm --setup` | Configure AI provider and preferences |
+| `cm --display-config` | Show current configuration |
+| `cm --warmup` | Pre-load Ollama model into memory |
+| `cm --install-completion` | Install shell tab completion |
 | `cm --no-copy` | Print only, don't copy |
 | `cm --verbose` | Show debug info (tokens, prompt size) |
 | `cm -v` | Show version |
@@ -105,8 +144,7 @@ Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
   "model": "gemma3:4b",
   "style": "conventional",
   "include_body": true,
-  "max_subject_length": 50,
-  "show_diff_stats": true
+  "max_subject_length": 50
 }
 ```
 
@@ -117,7 +155,6 @@ Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
 | `style` | `conventional`, `simple`, `detailed` | Commit message format |
 | `include_body` | `true`, `false` | Include bullet points in body |
 | `max_subject_length` | number | Max chars for subject line (default: 50) |
-| `show_diff_stats` | `true`, `false` | Show file count during analysis |
 
 ### Styles
 
@@ -209,14 +246,23 @@ type(scope): short subject line
 ```
 commit-msg-gen/
 ├── src/
-│   ├── __init__.py         # Package init, shared constants
-│   ├── cli.py              # Main entry point
-│   ├── git_analyzer.py     # Reads git diff
-│   ├── diff_processor.py   # Filters & prioritizes
-│   ├── prompt_builder.py   # Builds AI prompt
-│   ├── llm_client.py       # Ollama/Claude clients
-│   ├── config.py           # User settings
-│   └── output.py           # Terminal colors
+│   ├── __init__.py          # Package root, version, commit types
+│   ├── cli/                 # Command-line interface
+│   │   ├── args.py          # Argument parsing
+│   │   ├── commands.py      # Setup, config display, warmup
+│   │   ├── main.py          # Entry point
+│   │   └── utils.py         # Clipboard, message cleaning
+│   ├── config/              # Configuration management
+│   ├── git/                 # Git operations
+│   │   ├── analyzer.py      # Staged changes extraction
+│   │   └── diff_processor.py # Diff → LLM context
+│   ├── llm/                 # LLM clients
+│   │   ├── base.py          # Base classes, system prompt
+│   │   ├── claude.py        # Anthropic API
+│   │   └── ollama.py        # Local Ollama
+│   ├── output/              # Terminal formatting
+│   └── prompts/             # Prompt construction
+│       └── builder.py       # PromptBuilder
 ├── pyproject.toml
 └── README.md
 ```

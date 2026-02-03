@@ -13,7 +13,8 @@
       "Bash(findstr:*)",
       "Bash(reg query \"HKCU\\\\Environment\")",
       "Bash(reg query:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(find:*)"
     ]
   }
 }

@@ -1,62 +1,28 @@
-"""
-Prompt Builder Module
-
-Responsible for constructing effective LLM prompts.
-Single Responsibility: Turn processed diff → prompt string.
-
-The prompt is the most important part of this tool.
-A good prompt = good commit messages.
-"""
+"""Prompt Builder - Construct LLM prompts for commit message generation."""
 
 from dataclasses import dataclass
 
-from src.diff_processor import ProcessedDiff
-from src import COMMIT_TYPES  # Centralized in __init__.py
+from src.git import ProcessedDiff
+from src import COMMIT_TYPES
 
 
 @dataclass
 class PromptConfig:
-    """
-    User-provided context that shapes the prompt.
-
-    These come from CLI flags like --hint and --type.
-    """
-    hint: str | None = None          # User context: "refactoring auth"
-    forced_type: str | None = None   # Force: feat, fix, refactor, etc.
-    num_options: int = 1             # How many messages to generate
-    file_count: int = 0              # Number of files changed (for bullet scaling)
-
-    # From user config
-    style: str = "conventional"      # "conventional", "simple", "detailed"
-    include_body: bool = True        # Include bullet points
-    max_subject_length: int = 50     # Max chars for subject line
+    """User-provided context that shapes the prompt."""
+    hint: str | None = None
+    forced_type: str | None = None
+    num_options: int = 1
+    file_count: int = 0
+    style: str = "conventional"
+    include_body: bool = True
+    max_subject_length: int = 50
 
 
 class PromptBuilder:
-    """
-    Constructs prompts optimized for commit message generation.
-    
-    Design decisions:
-    - Clear structure with XML-ish tags (Claude handles these well)
-    - Examples embedded in prompt (few-shot learning)
-    - Explicit format requirements
-    """
-    
+    """Constructs prompts optimized for commit message generation."""
+
     def build(self, diff: ProcessedDiff, config: PromptConfig | None = None) -> str:
-        """
-        Build the complete prompt for the LLM.
-
-        Structure:
-        1. Role & task description
-        2. Output format requirements
-        3. Examples (few-shot)
-        4. The actual diff
-        5. User hints (if any)
-        6. Analysis step (chain-of-thought)
-        7. Final instructions
-        """
         config = config or PromptConfig()
-
         sections = [
             self._build_role_section(),
             self._build_format_section(config),
@@ -66,11 +32,9 @@ class PromptBuilder:
             self._build_analysis_section(),
             self._build_final_instructions(config),
         ]
-
         return "\n\n".join(filter(None, sections))
-    
+
     def _build_role_section(self) -> str:
-        """Set up the LLM's role and task."""
         return """You are a senior software engineer who has mass-reviewed thousands of pull requests and written commit messages for large open-source projects. You deeply understand that commit messages are documentation for future developers—often yourself, six months from now, wondering "why did we do this?"
 
 Your philosophy on commit messages:
@@ -97,13 +61,11 @@ The scope in type(scope) should be:
 - A feature area: login, checkout, search
 - A component: Button, UserService, config
 - Keep it short (1 word ideal, 2 max)"""
-    
+
     def _build_format_section(self, config: PromptConfig) -> str:
-        """Specify the exact output format we want."""
         max_len = config.max_subject_length
         is_simple = config.style == "simple"
 
-        # Format description
         if is_simple:
             format_desc = f"subject line (imperative mood, max {max_len} chars)"
             type_instruction = "\nUse a simple, direct subject line without type prefixes."
@@ -111,38 +73,32 @@ The scope in type(scope) should be:
             format_desc = f"type(scope): subject line (imperative mood, max {max_len} chars)"
             type_instruction = self._build_type_instruction(config.forced_type)
 
-        # Body section
         body_section = self._build_body_section(config) if config.include_body else \
             "\nDo NOT include a body or bullet points. Subject line only."
 
         return f"""<format>
-                Write commit messages in this exact format:
+Write commit messages in this exact format:
 
-                {format_desc}
-                {body_section}
+{format_desc}
+{body_section}
 
-                {type_instruction}
-                </format>"""
+{type_instruction}
+</format>"""
 
     def _build_type_instruction(self, forced_type: str | None) -> str:
-        """Build the type selection instruction."""
         if forced_type:
             return f"\nIMPORTANT: Use type '{forced_type}' for this commit."
         types_list = "\n".join(f"  - {t}: {desc}" for t, desc in COMMIT_TYPES.items())
         return f"\nChoose the most appropriate type:\n{types_list}"
 
     def _build_body_section(self, config: PromptConfig) -> str:
-        """Build the bullet point instructions based on file count and style."""
         fc = config.file_count
 
-        # Bullet counts: (threshold, detailed_range, standard_range)
-        # Detailed style gets more bullets at each tier
         if config.style == "detailed":
             bullets = self._get_bullet_range(fc, thresholds=[(15, "6-8"), (8, "5-6"), (4, "4-5"), (0, "2-3")])
         else:
             bullets = self._get_bullet_range(fc, thresholds=[(15, "5-6"), (8, "4-5"), (4, "3-4"), (0, "1-2")])
 
-        # Large changes (8+ files) are required, smaller are suggested
         prefix = "REQUIRED: Write exactly" if fc >= 8 else "Write"
         suffix = "for this large change" if fc >= 15 else "for this change" if fc >= 4 else "for this small change"
         bullet_instruction = f"{prefix} {bullets} bullets {suffix} ({fc} files)."
@@ -158,14 +114,12 @@ Each bullet should:
 - Mention specific files, components, or functions by name"""
 
     def _get_bullet_range(self, file_count: int, thresholds: list[tuple[int, str]]) -> str:
-        """Get bullet range string based on file count and thresholds."""
         for threshold, range_str in thresholds:
             if file_count >= threshold:
                 return range_str
-        return thresholds[-1][1]  # fallback to last
-    
+        return thresholds[-1][1]
+
     def _build_examples_section(self, config: PromptConfig) -> str:
-        """Provide few-shot examples of good commit messages."""
         if config.style == "simple":
             if config.include_body:
                 return """<examples>
@@ -179,18 +133,12 @@ Add rate limiting to login endpoint
 
 - Limits to 5 attempts per minute per IP
 - Returns 429 with retry-after header when exceeded
-
-Example 3 - Tiny change:
-Bump lodash to 4.17.21
-
-- Fixes prototype pollution vulnerability CVE-2021-23337
 </examples>"""
             else:
                 return """<examples>
 Example 1: Handle expired token gracefully
 Example 2: Add rate limiting to login endpoint
 Example 3: Extract query builders into separate module
-Example 4: Bump lodash to 4.17.21
 </examples>"""
         elif config.style == "detailed":
             return """<examples>
@@ -208,17 +156,8 @@ feat(api): add rate limiting to login endpoint with Redis backing
 - Returns 429 status with Retry-After header when limit exceeded
 - Uses Redis for distributed rate limiting across multiple instances
 - Adds configuration options for limit thresholds in environment variables
-- Includes bypass mechanism for whitelisted IPs
-
-Example 3 - Refactor with rationale:
-refactor(db): extract query builders into dedicated QueryBuilder module
-
-- Moved complex SQL query construction from UserService to QueryBuilder class
-- Reduces code duplication across UserService, OrderService, and ReportService
-- Enables easier unit testing of query logic in isolation
-- Prepares codebase for upcoming pagination feature implementation
 </examples>"""
-        else:  # conventional (default)
+        else:
             if config.include_body:
                 return """<examples>
 Example 1 - Simple fix (1 bullet):
@@ -238,69 +177,43 @@ refactor(db): extract query builders into separate module
 - Moved complex queries from UserService to QueryBuilder class
 - Reduces duplication across 4 service files
 - Makes query logic easier to test in isolation
-
-Example 4 - Large feature (4-5 bullets):
-feat(upload): add batch file processing
-
-- New BatchUploadService handles multiple files in single request
-- Chunked processing keeps memory usage under 100MB
-- Progress events emitted for UI feedback
-- Failed files don't block successful ones
-- Added cleanup job for incomplete uploads
-
-Example 5 - Tiny change (1 bullet):
-chore(deps): bump lodash to 4.17.21
-
-- Fixes prototype pollution vulnerability CVE-2021-23337
 </examples>"""
             else:
                 return """<examples>
 Example 1: fix(auth): handle expired token gracefully
 Example 2: feat(api): add rate limiting to login endpoint
 Example 3: refactor(db): extract query builders into separate module
-Example 4: chore(deps): bump lodash to 4.17.21
 </examples>"""
-    
+
     def _build_diff_section(self, diff: ProcessedDiff) -> str:
-        """Include the actual changes."""
         parts = [
             "<changes>",
             f"FILES CHANGED: {diff.total_files}",
             "",
             diff.summary,
         ]
-        
+
         if diff.detailed_diff:
-            parts.extend([
-                "",
-                "DIFF DETAILS:",
-                diff.detailed_diff,
-            ])
-        
+            parts.extend(["", "DIFF DETAILS:", diff.detailed_diff])
+
         if diff.truncated:
-            parts.append(
-                "\n[Note: Diff was truncated due to size. "
-                "Focus on the file summary above for scope.]"
-            )
-        
+            parts.append("\n[Note: Diff was truncated due to size. Focus on the file summary above for scope.]")
+
         parts.append("</changes>")
-        
         return "\n".join(parts)
-    
+
     def _build_hints_section(self, config: PromptConfig) -> str:
-        """Include user-provided context if any."""
         if not config.hint:
             return ""
-        
+
         return f"""<context>
 The developer provided this context about the changes:
 "{config.hint}"
 
 Use this to inform your message, but verify it matches what you see in the diff.
 </context>"""
-    
+
     def _build_analysis_section(self) -> str:
-        """Add chain-of-thought reasoning to improve output quality."""
         return """<thinking>
 Before writing, mentally identify:
 1. What is the PRIMARY change? (there's usually one main thing)
@@ -312,20 +225,14 @@ DO NOT output this analysis. Use it internally, then output ONLY the commit mess
 </thinking>"""
 
     def _build_final_instructions(self, config: PromptConfig) -> str:
-        """Clear instructions for what to output."""
-        # Determine format based on style
         if config.style == "simple":
             format_example = "Subject line here"
         else:
             format_example = "type(scope): subject line"
 
         if config.num_options > 1:
-            if config.include_body:
-                body_example = "\n\n- bullet explaining implementation detail\n- bullet about code structure change"
-                body_example2 = "\n\n- bullet explaining user-facing benefit\n- bullet about problem solved"
-            else:
-                body_example = ""
-                body_example2 = ""
+            body_example = "\n\n- bullet explaining implementation detail" if config.include_body else ""
+            body_example2 = "\n\n- bullet explaining user-facing benefit" if config.include_body else ""
 
             return f"""<instructions>
 Generate exactly {config.num_options} SEPARATE commit message options.
@@ -344,8 +251,6 @@ Format exactly like this:
 
 IMPORTANT:
 - Include BOTH [Option 1] and [Option 2] labels exactly as shown
-- Same type is OK if both options genuinely fit that type
-- Different scopes are OK if the change spans areas
 - No markdown, no extra explanation, no preamble
 </instructions>"""
         else:
@@ -361,42 +266,3 @@ Rules:
 {body_rule}
 - Just the raw commit message, ready to use
 </instructions>"""
-
-
-# Quick test when run directly
-if __name__ == "__main__":
-    from src.git_analyzer import GitAnalyzer, GitError
-    from src.diff_processor import DiffProcessor
-    
-    try:
-        # Get and process changes
-        analyzer = GitAnalyzer()
-        changes = analyzer.get_staged_changes()
-        
-        if changes.is_empty:
-            print("No staged changes")
-        else:
-            processor = DiffProcessor()
-            processed = processor.process(changes)
-            
-            # Build prompt with some example config
-            builder = PromptBuilder()
-            
-            # Test 1: Default (single message)
-            prompt = builder.build(processed)
-            print("=== PROMPT (single message mode) ===")
-            print(f"Length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
-            print("\n" + prompt[:1500] + "\n...\n")
-            
-            # Test 2: With hint and forced type
-            config = PromptConfig(
-                hint="refactoring the git analysis logic",
-                forced_type="refactor",
-                num_options=2
-            )
-            prompt_with_config = builder.build(processed, config)
-            print("\n=== PROMPT (with config) ===")
-            print(f"Length: {len(prompt_with_config)} chars")
-            
-    except GitError as e:
-        print(f"Error: {e}")
