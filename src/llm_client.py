@@ -10,11 +10,51 @@ Supported providers:
 """
 
 import os
+import re
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import urllib.request
 import urllib.error
+
+from src import COMMIT_TYPE_NAMES  # Centralized in __init__.py
+
+
+# Shared system prompt for consistent behavior across providers
+SYSTEM_PROMPT = """You are a senior software engineer specialized in writing precise, informative git commit messages. You have mass-reviewed thousands of pull requests at major tech companies and open-source projects.
+
+Your expertise:
+- Deep understanding of conventional commit format (type, scope, subject, body)
+- Ability to identify the PRIMARY purpose of a change from a diff
+- Writing for future developers who will read git log at 2am debugging production
+
+Your standards:
+- Every word earns its place—no filler, no fluff
+- The diff shows WHAT; you explain WHY
+- Specific verbs over vague ones (never "update", "change", "modify")
+- Bullets add context the subject line can't capture"""
+
+
+def validate_commit_message(content: str) -> tuple[bool, str]:
+    """
+    Validate that response looks like a proper commit message.
+
+    Returns:
+        (is_valid, error_message)
+    """
+    if not content or len(content.strip()) < 10:
+        return False, "Response too short"
+
+    # Check for conventional commit format: type(scope): or type:
+    # Uses centralized COMMIT_TYPE_NAMES from src/__init__.py
+    types_pattern = '|'.join(COMMIT_TYPE_NAMES)
+    pattern = rf'^({types_pattern})(\(.+\))?!?:'
+    first_line = content.strip().split('\n')[0]
+
+    if not re.match(pattern, first_line):
+        return False, f"Missing conventional commit format. Got: {first_line[:50]}"
+
+    return True, ""
 
 
 @dataclass
@@ -66,24 +106,26 @@ class LLMClient(ABC):
 class ClaudeClient(LLMClient):
     """
     Claude API client via Anthropic SDK.
-    
+
     Best for: Production use, highest quality
     Requires: ANTHROPIC_API_KEY environment variable
     """
-    
+
     DEFAULT_MODEL = "claude-sonnet-4-20250514"
     MAX_TOKENS = 1000  # Increased for detailed commit messages
-    
+    TEMPERATURE = 0.4  # Lower = more consistent, professional output
+    MAX_RETRIES = 2  # Retry on malformed response
+
     def __init__(self, api_key: str | None = None, model: str | None = None):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.model = model or self.DEFAULT_MODEL
-        
+
         if not self.api_key:
             raise LLMError(
                 "No API key found. Set ANTHROPIC_API_KEY environment variable:\n"
                 "  export ANTHROPIC_API_KEY='your-key-here'"
             )
-        
+
         # Lazy import - only load SDK if using Claude
         try:
             from anthropic import Anthropic
@@ -93,37 +135,57 @@ class ClaudeClient(LLMClient):
                 "Anthropic SDK not installed. Run:\n"
                 "  pip install anthropic"
             )
-    
+
     @property
     def name(self) -> str:
         return f"Claude ({self.model})"
-    
+
     def generate(self, prompt: str) -> LLMResponse:
         from anthropic import APIError, AuthenticationError
-        
-        try:
-            response = self._client.messages.create(
-                model=self.model,
-                max_tokens=self.MAX_TOKENS,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            
-            content = ""
-            for block in response.content:
-                if block.type == "text":
-                    content = block.text.strip()
-                    break
-            
-            return LLMResponse(
-                content=content,
-                model=self.model,
-                tokens_used=response.usage.input_tokens + response.usage.output_tokens
-            )
-            
-        except AuthenticationError:
-            raise LLMError("Invalid API key. Check your ANTHROPIC_API_KEY.")
-        except APIError as e:
-            raise LLMError(f"Claude API error: {e.message}")
+
+        last_error = ""
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                # Add retry context if this is a retry
+                retry_prompt = prompt
+                if attempt > 0:
+                    retry_prompt = f"{prompt}\n\nIMPORTANT: Your previous response was invalid ({last_error}). Start directly with the commit type, e.g., 'feat(scope):'"
+
+                response = self._client.messages.create(
+                    model=self.model,
+                    max_tokens=self.MAX_TOKENS,
+                    temperature=self.TEMPERATURE,
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": retry_prompt}]
+                )
+
+                content = ""
+                for block in response.content:
+                    if block.type == "text":
+                        content = block.text.strip()
+                        break
+
+                # Validate response format
+                is_valid, error = validate_commit_message(content)
+                if not is_valid:
+                    last_error = error
+                    if attempt < self.MAX_RETRIES:
+                        continue  # Retry
+                    # On final attempt, return anyway (let user see what we got)
+
+                return LLMResponse(
+                    content=content,
+                    model=self.model,
+                    tokens_used=response.usage.input_tokens + response.usage.output_tokens
+                )
+
+            except AuthenticationError:
+                raise LLMError("Invalid API key. Check your ANTHROPIC_API_KEY.")
+            except APIError as e:
+                raise LLMError(f"Claude API error: {e.message}")
+
+        # Should not reach here, but just in case
+        raise LLMError(f"Failed after {self.MAX_RETRIES} retries: {last_error}")
 
 
 # =============================================================================
@@ -133,30 +195,31 @@ class ClaudeClient(LLMClient):
 class OllamaClient(LLMClient):
     """
     Ollama client for local model inference.
-    
+
     Best for: Free usage, privacy, offline work
     Requires: Ollama running locally (ollama serve)
-    
+
     Recommended models for commit messages:
     - llama3.2:3b    (fastest, ~2GB RAM)
     - mistral:7b     (balanced, ~4GB RAM)
     - qwen2.5-coder:7b (code-optimized, ~4GB RAM)
     """
-    
-    DEFAULT_MODEL = "llama3.2:3b"
+
+    DEFAULT_MODEL = "mistral:7b"
     DEFAULT_HOST = "http://localhost:11434"
-    
+    MAX_RETRIES = 2  # Retry on malformed response
+
     def __init__(self, model: str | None = None, host: str | None = None):
         self.model = model or self.DEFAULT_MODEL
         self.host = host or os.environ.get("OLLAMA_HOST", self.DEFAULT_HOST)
-        
+
         # Verify Ollama is running
         self._verify_connection()
-    
+
     @property
     def name(self) -> str:
         return f"Ollama ({self.model})"
-    
+
     def _verify_connection(self) -> None:
         """Check if Ollama is running and accessible."""
         try:
@@ -167,57 +230,83 @@ class OllamaClient(LLMClient):
             raise LLMError(
                 f"Ollama not running. Start with: ollama serve"
             )
-    
-    def generate(self, prompt: str) -> LLMResponse:
-        """
-        Call Ollama's generate API.
-        
-        Uses urllib to avoid adding requests as a dependency.
-        """
+
+    def _call_api(self, prompt: str) -> dict:
+        """Make a single API call to Ollama."""
         url = f"{self.host}/api/generate"
-        
+
         payload = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False,  # Get complete response at once
+            "system": SYSTEM_PROMPT,  # System prompt for Ollama
+            "stream": False,
             "options": {
-                "temperature": 0.7,
-                "num_predict": 1000,  # Increased for detailed commit messages
+                "temperature": 0.4,
+                "num_predict": 1000,
             }
         }
-        
-        try:
-            data = json.dumps(payload).encode('utf-8')
-            req = urllib.request.Request(
-                url,
-                data=data,
-                headers={"Content-Type": "application/json"}
-            )
-            
-            with urllib.request.urlopen(req, timeout=60) as response:
-                result = json.loads(response.read().decode('utf-8'))
-            
-            return LLMResponse(
-                content=result.get("response", "").strip(),
-                model=self.model,
-                tokens_used=result.get("eval_count", 0)
-            )
-            
-        except urllib.error.URLError as e:
-            if "Connection refused" in str(e):
-                raise LLMError(f"Ollama not running. Start with: ollama serve")
-            raise LLMError(f"Ollama request failed: {e}")
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                raise LLMError(f"Model '{self.model}' not found. Run: ollama pull {self.model}")
-            raise LLMError(f"Ollama error ({e.code}): {e.reason}")
-        except json.JSONDecodeError:
-            raise LLMError("Invalid response from Ollama")
-        except TimeoutError:
-            raise LLMError(
-                f"Request timed out. Model '{self.model}' may need to be pulled.\n"
-                f"Run: ollama pull {self.model}"
-            )
+
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"}
+        )
+
+        with urllib.request.urlopen(req, timeout=60) as response:
+            return json.loads(response.read().decode('utf-8'))
+
+    def generate(self, prompt: str) -> LLMResponse:
+        """
+        Call Ollama's generate API with retry logic.
+
+        Uses urllib to avoid adding requests as a dependency.
+        """
+        last_error = ""
+
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                # Add retry context if this is a retry
+                retry_prompt = prompt
+                if attempt > 0:
+                    retry_prompt = f"{prompt}\n\nIMPORTANT: Your previous response was invalid ({last_error}). Start directly with the commit type, e.g., 'feat(scope):'"
+
+                result = self._call_api(retry_prompt)
+                content = result.get("response", "").strip()
+
+                # Validate response format
+                is_valid, error = validate_commit_message(content)
+                if not is_valid:
+                    last_error = error
+                    if attempt < self.MAX_RETRIES:
+                        continue  # Retry
+                    # On final attempt, return anyway
+
+                return LLMResponse(
+                    content=content,
+                    model=self.model,
+                    tokens_used=result.get("eval_count", 0)
+                )
+
+            except urllib.error.HTTPError as e:
+                # HTTPError must come before URLError (it's a subclass)
+                if e.code == 404:
+                    raise LLMError(f"Model '{self.model}' not found. Run: ollama pull {self.model}")
+                raise LLMError(f"Ollama error ({e.code}): {e.reason}")
+            except urllib.error.URLError as e:
+                if "Connection refused" in str(e):
+                    raise LLMError(f"Ollama not running. Start with: ollama serve")
+                raise LLMError(f"Ollama request failed: {e}")
+            except json.JSONDecodeError:
+                raise LLMError("Invalid response from Ollama")
+            except TimeoutError:
+                raise LLMError(
+                    f"Request timed out. Model '{self.model}' may need to be pulled.\n"
+                    f"Run: ollama pull {self.model}"
+                )
+
+        # Should not reach here
+        raise LLMError(f"Failed after {self.MAX_RETRIES} retries: {last_error}")
 
 
 # =============================================================================

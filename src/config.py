@@ -28,18 +28,17 @@ class Config:
     """
     User configuration with sensible defaults.
     """
-    # LLM settings
-    provider: str = "auto"
-    model: Optional[str] = None
-    
-    # Message style
-    style: str = "conventional"  # conventional, simple, detailed
-    include_body: bool = True
-    max_subject_length: int = 50
-    
-    # Behavior
-    auto_commit: bool = False  # If True, skip confirmation in non-dry-run
-    show_diff_stats: bool = True
+    # LLM settings (actively used)
+    provider: str = "auto"  # "auto", "ollama", "claude"
+    model: Optional[str] = None  # Model name override
+
+    # TODO: These fields are defined for future use but not yet implemented
+    # Uncomment and implement as needed:
+    # style: str = "conventional"  # conventional, simple, detailed
+    # include_body: bool = True
+    # max_subject_length: int = 50
+    # auto_commit: bool = False
+    # show_diff_stats: bool = True
     
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

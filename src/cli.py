@@ -6,17 +6,19 @@ Generates commit messages from staged changes and copies to clipboard.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
-from git_analyzer import GitAnalyzer, GitError
-from diff_processor import DiffProcessor
-from prompt_builder import PromptBuilder, PromptConfig
-from llm_client import get_client, LLMError
-from config import load_config, save_config, Config
-from output import (
+from src import COMMIT_TYPE_NAMES, __version__  # Centralized in __init__.py
+from src.git_analyzer import GitAnalyzer, GitError
+from src.diff_processor import DiffProcessor
+from src.prompt_builder import PromptBuilder, PromptConfig
+from src.llm_client import get_client, LLMError
+from src.config import load_config, save_config, Config
+from src.output import (
     success, info, dim, bold,
-    print_success, print_error,
+    print_success, print_error, print_box,
     CHECK
 )
 
@@ -25,9 +27,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog='cm',
         description='Generate AI-powered commit messages',
-        epilog='Example: cm → copies message to clipboard'
+        epilog='Example: cm (copies message to clipboard)'
     )
-    
+
+    parser.add_argument(
+        '-v', '--version',
+        action='version',
+        version=f'%(prog)s {__version__}'
+    )
+
     parser.add_argument(
         '-c', '--choose',
         action='store_true',
@@ -44,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '-t', '--type',
         type=str,
-        choices=['feat', 'fix', 'refactor', 'chore', 'docs', 'test', 'style'],
+        choices=COMMIT_TYPE_NAMES,  # Centralized in __init__.py
         help='Force commit type'
     )
     
@@ -80,7 +88,13 @@ def parse_args() -> argparse.Namespace:
         action='store_true',
         help='Print message only, do not copy to clipboard'
     )
-    
+
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Show debug info (prompt size, tokens used)'
+    )
+
     return parser.parse_args()
 
 
@@ -114,7 +128,10 @@ def copy_to_clipboard(text: str) -> bool:
                     check=True
                 )
         return True
-    except Exception:
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        # CalledProcessError: clipboard command failed
+        # FileNotFoundError: clipboard command not found
+        # OSError: other OS-level errors (permissions, etc.)
         return False
 
 
@@ -171,11 +188,11 @@ def main() -> int:
     
     if args.setup:
         return run_setup()
-    
-    # Load config
+
+    # Load config with priority: CLI args > env vars > config file > defaults
     config = load_config()
-    provider = args.provider or config.provider
-    model = args.model or config.model
+    provider = args.provider or os.environ.get('CM_PROVIDER') or config.provider
+    model = args.model or os.environ.get('CM_MODEL') or config.model
     
     # Get staged changes
     try:
@@ -213,6 +230,12 @@ def main() -> int:
         print()
         print_error(str(e))
         return 1
+
+    # Verbose output
+    if args.verbose:
+        print()
+        print(dim(f"  Prompt: ~{len(prompt)//4} tokens ({len(prompt)} chars)"))
+        print(dim(f"  Response: {response.tokens_used} tokens"))
     
     # Handle response
     if args.choose:
@@ -261,23 +284,14 @@ def main() -> int:
     
     # Output
     print()
-    
-    # Clean box around message
-    lines = message.split('\n')
-    max_len = max(len(line) for line in lines)
-    box_width = min(max_len, 66)
-    
-    print(dim('┌─' + '─' * box_width + '─┐'))
-    for line in lines:
-        padding = ' ' * (box_width - len(line))
-        print(dim('│ ') + line + padding + dim(' │'))
-    print(dim('└─' + '─' * box_width + '─┘'))
+    print_box(message)
     
     # Copy to clipboard
     if not args.no_copy:
         if copy_to_clipboard(message):
             print(f"\n{success(CHECK)} Copied to clipboard!")
-            print(f"{dim('Paste with:')} git commit -m \"Ctrl+V\"")
+            print(dim("Run: git commit → paste in editor, or:"))
+            print(dim("     git commit -m \"<paste>\""))
         else:
             print(f"\n{dim('(Could not copy to clipboard)')}")
     

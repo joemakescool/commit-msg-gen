@@ -38,8 +38,8 @@ dev = [
 cm = "src.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/commit-msg-gen"
-Repository = "https://github.com/yourusername/commit-msg-gen"
+Homepage = "https://github.com/joemakescool/commit-msg-gen"
+Repository = "https://github.com/joemakescool/commit-msg-gen"
 
 [tool.setuptools.packages.find]
 where = ["."]

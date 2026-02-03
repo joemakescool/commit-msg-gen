@@ -10,32 +10,21 @@ A good prompt = good commit messages.
 
 from dataclasses import dataclass
 
-from diff_processor import ProcessedDiff
+from src.diff_processor import ProcessedDiff
+from src import COMMIT_TYPES  # Centralized in __init__.py
 
 
 @dataclass
 class PromptConfig:
     """
     User-provided context that shapes the prompt.
-    
+
     These come from CLI flags like --hint and --type.
     """
     hint: str | None = None          # User context: "refactoring auth"
     forced_type: str | None = None   # Force: feat, fix, refactor, etc.
     num_options: int = 1             # How many messages to generate
     file_count: int = 0              # Number of files changed (for bullet scaling)
-
-
-# Valid commit types with descriptions (for the LLM)
-COMMIT_TYPES = {
-    'feat': 'A new feature or capability',
-    'fix': 'A bug fix',
-    'refactor': 'Code restructuring without behavior change',
-    'chore': 'Maintenance tasks, dependencies, tooling',
-    'docs': 'Documentation only changes',
-    'test': 'Adding or updating tests',
-    'style': 'Formatting, whitespace, no code change',
-}
 
 
 class PromptBuilder:
@@ -51,36 +40,58 @@ class PromptBuilder:
     def build(self, diff: ProcessedDiff, config: PromptConfig | None = None) -> str:
         """
         Build the complete prompt for the LLM.
-        
+
         Structure:
         1. Role & task description
         2. Output format requirements
         3. Examples (few-shot)
         4. The actual diff
         5. User hints (if any)
-        6. Final instructions
+        6. Analysis step (chain-of-thought)
+        7. Final instructions
         """
         config = config or PromptConfig()
-        
+
         sections = [
             self._build_role_section(),
             self._build_format_section(config),
             self._build_examples_section(),
             self._build_diff_section(diff),
             self._build_hints_section(config),
+            self._build_analysis_section(),
             self._build_final_instructions(config),
         ]
-        
+
         return "\n\n".join(filter(None, sections))
     
     def _build_role_section(self) -> str:
         """Set up the LLM's role and task."""
-        return """You are a commit message expert. Your task is to analyze code changes and write clear, descriptive commit messages.
+        return """You are a senior software engineer who has mass-reviewed thousands of pull requests and written commit messages for large open-source projects. You deeply understand that commit messages are documentation for future developers—often yourself, six months from now, wondering "why did we do this?"
 
-You write messages that:
-- Help future developers understand WHY changes were made
-- Are scannable in git log
-- Follow conventional commit format"""
+Your philosophy on commit messages:
+- The DIFF shows WHAT changed. Your job is to explain WHY.
+- A good commit message saves 15 minutes of code archaeology later.
+- Write for the tired developer at 2am debugging a production issue.
+- Every word must earn its place. No filler, no fluff.
+
+Your approach:
+1. First, identify the PRIMARY purpose of this change (there's usually one main thing)
+2. Determine the scope—what module, component, or area is affected
+3. Write a subject line that completes the sentence: "If applied, this commit will..."
+4. Add bullets that explain impact, reasoning, or non-obvious details
+
+What you NEVER do:
+- Use vague verbs: "Update", "Change", "Modify", "Fix stuff" (be specific)
+- State the obvious: "Change X to Y" when the diff shows exactly that
+- Write bullets that just repeat the subject line in different words
+- Start bullets with "This commit..." (implied—it's a commit message)
+- Add filler bullets just to hit a count (quality over quantity)
+
+The scope in type(scope) should be:
+- A module name: auth, api, db, ui
+- A feature area: login, checkout, search
+- A component: Button, UserService, config
+- Keep it short (1 word ideal, 2 max)"""
     
     def _build_format_section(self, config: PromptConfig) -> str:
         """Specify the exact output format we want."""
@@ -153,17 +164,7 @@ Example 5 - Tiny change (1 bullet):
 chore(deps): bump lodash to 4.17.21
 
 - Fixes prototype pollution vulnerability CVE-2021-23337
-</examples>
-
-<guidelines>
-Match bullet count to change size:
-- Tiny (config, deps, typo): 1 bullet
-- Small (bug fix, small feature): 1-2 bullets
-- Medium (new feature, refactor): 2-4 bullets
-- Large (major feature, big refactor): 4-5 bullets
-
-Don't pad with filler. If 2 bullets cover it, use 2.
-</guidelines>"""
+</examples>"""
     
     def _build_diff_section(self, diff: ProcessedDiff) -> str:
         """Include the actual changes."""
@@ -203,32 +204,47 @@ The developer provided this context about the changes:
 Use this to inform your message, but verify it matches what you see in the diff.
 </context>"""
     
+    def _build_analysis_section(self) -> str:
+        """Add chain-of-thought reasoning to improve output quality."""
+        return """<thinking>
+Before writing, mentally identify:
+1. What is the PRIMARY change? (there's usually one main thing)
+2. What type best fits? (feat/fix/refactor/etc.)
+3. What's the scope? (affected module/component)
+4. What's the key insight a future developer needs?
+
+DO NOT output this analysis. Use it internally, then output ONLY the commit message.
+</thinking>"""
+
     def _build_final_instructions(self, config: PromptConfig) -> str:
         """Clear instructions for what to output."""
         if config.num_options > 1:
             return f"""<instructions>
 Generate exactly {config.num_options} SEPARATE commit message options.
 
-You MUST format them exactly like this:
+Each option MUST take a meaningfully different approach:
+- Option 1: Focus on the TECHNICAL change (what was done to the code)
+- Option 2: Focus on the USER/BUSINESS impact (why it matters)
+
+Format exactly like this:
 
 [Option 1]
-type(scope): first subject line
+type(scope): technical-focused subject line
 
-- bullet one
-- bullet two
-- bullet three
+- bullet explaining implementation detail
+- bullet about code structure change
 
 [Option 2]
-type(scope): second subject line (different angle)
+type(scope): impact-focused subject line
 
-- bullet one
-- bullet two
-- bullet three
+- bullet explaining user-facing benefit
+- bullet about problem solved
 
 IMPORTANT:
-- Include BOTH [Option 1] and [Option 2] labels
-- Each option should take a different angle or emphasis
-- No markdown, no extra explanation
+- Include BOTH [Option 1] and [Option 2] labels exactly as shown
+- Same type is OK if both options genuinely fit that type
+- Different scopes are OK if the change spans areas
+- No markdown, no extra explanation, no preamble
 </instructions>"""
         else:
             return """<instructions>
@@ -245,8 +261,8 @@ Rules:
 
 # Quick test when run directly
 if __name__ == "__main__":
-    from git_analyzer import GitAnalyzer, GitError
-    from diff_processor import DiffProcessor
+    from src.git_analyzer import GitAnalyzer, GitError
+    from src.diff_processor import DiffProcessor
     
     try:
         # Get and process changes

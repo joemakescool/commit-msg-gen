@@ -4,33 +4,35 @@
 
 AI-powered commit message generator. Analyzes your staged changes, generates a descriptive message, copies it to your clipboard.
 
+## Installation
+
+**Option 1: Direct install from GitHub (recommended)**
+```bash
+pip install git+https://github.com/joemakescool/commit-msg-gen.git
+```
+
+**Option 2: Clone first, then install**
+```bash
+git clone https://github.com/joemakescool/commit-msg-gen.git
+cd commit-msg-gen
+pip install .
+```
+
+> **Windows users:** If `pip` isn't recognized, use `python -m pip` instead.
+
+That's it. The `cm` command is now available globally.
+
 ## Quick Start
 
-### 1. Setup (One Time)
-
-```powershell
-# Add to your PowerShell profile
-notepad $PROFILE
-
-# Add this line:
-function cm { python "C:\path\to\commit-msg-gen\src\cli.py" @args }
-
-# Save, close, reload:
-. $PROFILE
-
-# Configure your AI provider:
+```bash
+# 1. Configure your AI provider (one time)
 cm --setup
-```
 
-### 2. Use It
-
-```powershell
+# 2. Use it
 git add .                   # stage the files you want to commit
 cm                          # generates message → copies to clipboard
-git commit -m "Ctrl+V"      # paste and commit
+git commit -m "<paste>"     # paste and commit
 ```
-
-That's it! `cm` reads your staged changes, generates a message, and copies it. You handle git.
 
 ## How It Works
 
@@ -83,16 +85,26 @@ Analyzing 5 files... using Ollama (gemma3:4b)... done!
 | `cm -t fix` | Force a commit type |
 | `cm --setup` | Configure AI provider |
 | `cm --no-copy` | Print only, don't copy |
+| `cm --verbose` | Show debug info (tokens, prompt size) |
+| `cm -v` | Show version |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CM_PROVIDER` | Override provider: `ollama` or `claude` |
+| `CM_MODEL` | Override model name |
+| `ANTHROPIC_API_KEY` | Claude API key |
+| `OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| `cm` not recognized | Add function to PowerShell profile (see Setup) |
+| `cm` not recognized | Re-run `pip install .` or restart terminal |
 | "Ollama not running" | Run `ollama serve` in another terminal |
 | "Model not found" | Run `ollama pull <model-name>` |
 | "No staged changes" | Run `git add .` first |
-| Profile doesn't exist | Run `New-Item -Path $PROFILE -ItemType File -Force` |
 | Clipboard not working | Use `cm --no-copy` and copy manually |
 | Slow response | Try a smaller model: `cm -m llama3.2:3b` |
 | Bad message quality | Try a bigger model: `cm -m mistral:7b` |
@@ -108,6 +120,11 @@ Analyzing 5 files... using Ollama (gemma3:4b)... done!
 | `docs` | Documentation |
 | `test` | Tests |
 | `style` | Formatting |
+| `perf` | Performance improvement |
+| `ci` | CI/CD changes |
+| `build` | Build system changes |
+
+Use `!` for breaking changes: `feat!(api): remove deprecated endpoint`
 
 ## AI Providers
 
@@ -141,6 +158,7 @@ type(scope): short subject line
 ```
 commit-msg-gen/
 ├── src/
+│   ├── __init__.py         # Package init, shared constants
 │   ├── cli.py              # Main entry point
 │   ├── git_analyzer.py     # Reads git diff
 │   ├── diff_processor.py   # Filters & prioritizes

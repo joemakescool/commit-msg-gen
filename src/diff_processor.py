@@ -13,7 +13,7 @@ from enum import IntEnum
 from pathlib import Path
 import re
 
-from git_analyzer import FileChange, StagedChanges
+from src.git_analyzer import FileChange, StagedChanges
 
 
 class Priority(IntEnum):
@@ -360,7 +360,7 @@ class DiffProcessor:
 
 # Quick test when run directly
 if __name__ == "__main__":
-    from git_analyzer import GitAnalyzer, GitError
+    from src.git_analyzer import GitAnalyzer, GitError
     
     try:
         analyzer = GitAnalyzer()

@@ -166,6 +166,34 @@ def print_info(message: str) -> None:
     print(f"{info(message)}")
 
 
+def print_box(text: str, max_width: int = 66) -> None:
+    """
+    Print text inside a bordered box.
+
+    Args:
+        text: The text to display (can be multiline)
+        max_width: Maximum width of the box content
+    """
+    lines = text.split('\n')
+    content_width = min(max(len(line) for line in lines), max_width)
+
+    # Box characters (with ASCII fallback)
+    if UNICODE_ENABLED:
+        top = f'┌─{"─" * content_width}─┐'
+        bottom = f'└─{"─" * content_width}─┘'
+        side = '│'
+    else:
+        top = f'+-{"-" * content_width}-+'
+        bottom = f'+-{"-" * content_width}-+'
+        side = '|'
+
+    print(dim(top))
+    for line in lines:
+        padding = ' ' * (content_width - len(line))
+        print(f"{dim(side)} {line}{padding} {dim(side)}")
+    print(dim(bottom))
+
+
 # CLI test
 if __name__ == "__main__":
     print("Output Module Test")

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(git add:*)",
+      "Bash(del \"c:\\\\Users\\\\jbarker1\\\\Documents\\\\Projects\\\\commit-msg-gen\\\\test_prompt.txt\")",
+      "Bash(pip install:*)",
+      "Bash(cm:*)"
+    ]
+  }
+}
