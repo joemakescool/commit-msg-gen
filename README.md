@@ -35,7 +35,10 @@ $ git commit -m "<paste>"
 ## Quick Start
 
 ```bash
-# Install
+# Install (recommended)
+pipx install git+https://github.com/joemakescool/commit-msg-gen.git
+
+# Or with pip
 pip install git+https://github.com/joemakescool/commit-msg-gen.git
 
 # Use
@@ -49,6 +52,10 @@ That's it. Works immediately with [Ollama](https://ollama.ai) if you have it run
 ## Installation
 
 ```bash
+# Recommended: pipx keeps CLI tools isolated
+pipx install git+https://github.com/joemakescool/commit-msg-gen.git
+
+# Or with pip
 pip install git+https://github.com/joemakescool/commit-msg-gen.git
 ```
 
@@ -99,6 +106,8 @@ cm --hint "fixing the auth bug"   # Add context
 cm -t fix                          # Force commit type
 cm -j PROJ-123                     # Append JIRA ticket
 cm -c                              # Generate 2 options, pick one
+cm -c 3                            # Generate 3 options, pick one
+cm -j PROJ-123 --ticket-prefix Closes  # Use custom prefix
 ```
 
 ### Style Options
@@ -123,10 +132,11 @@ cm -m mistral:7b            # Specify model
 | Command | Description |
 |---------|-------------|
 | `cm` | Generate message, copy to clipboard |
-| `cm -c` | Choose from 2 options |
+| `cm -c` / `cm -c N` | Choose from N options (default: 2, max: 4) |
 | `cm --hint TEXT` | Add context for better messages |
 | `cm -t TYPE` | Force commit type (feat, fix, etc.) |
 | `cm -j TICKET` | Append JIRA reference |
+| `cm --ticket-prefix PREFIX` | Ticket prefix: Refs, Closes, Fixes |
 | `cm -s STYLE` | Set style: conventional, simple, detailed |
 | `cm --no-body` | Subject line only |
 | `cm -p PROVIDER` | Use: auto, ollama, claude |
@@ -154,7 +164,8 @@ Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
   "model": "gemma3:4b",
   "style": "conventional",
   "include_body": true,
-  "max_subject_length": 50
+  "max_subject_length": 72,
+  "ticket_prefix": "Refs"
 }
 ```
 
@@ -164,7 +175,8 @@ Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
 | `model` | any model name | Model override (e.g., `llama3.2:3b`) |
 | `style` | `conventional`, `simple`, `detailed` | Commit message format |
 | `include_body` | `true`, `false` | Include bullet points in body |
-| `max_subject_length` | number | Max chars for subject line (default: 50) |
+| `max_subject_length` | number | Max chars for subject line (default: 72) |
+| `ticket_prefix` | any string | Ticket reference prefix (default: `Refs`) |
 
 ### Styles
 

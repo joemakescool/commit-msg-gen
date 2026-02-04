@@ -1,8 +1,10 @@
 """CLI Utility Functions"""
 
+import os
 import re
 import subprocess
 import sys
+import tempfile
 
 from src import COMMIT_TYPE_NAMES
 from src.output import bold
@@ -73,3 +75,26 @@ def display_options(options: list[str]) -> int | None:
         except (ValueError, KeyboardInterrupt, EOFError):
             pass
         print(f"Enter 1-{len(options)} or q")
+
+
+def edit_message(message: str) -> str | None:
+    """Open message in user's editor. Returns edited text or None on failure."""
+    editor = os.environ.get('VISUAL') or os.environ.get('EDITOR')
+    if not editor:
+        editor = 'notepad' if sys.platform == 'win32' else 'vi'
+
+    tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.gitcommit', delete=False, encoding='utf-8')
+    try:
+        tmp.write(message)
+        tmp.close()
+        subprocess.run([editor, tmp.name], check=True)
+        with open(tmp.name, 'r', encoding='utf-8') as f:
+            edited = f.read().strip()
+        return edited if edited else None
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass

@@ -37,6 +37,7 @@ def display_config() -> int:
     print(f"    style:             {info(config.style)}")
     print(f"    include_body:      {info(str(config.include_body).lower())}")
     print(f"    max_subject_length: {info(str(config.max_subject_length))}")
+    print(f"    ticket_prefix:     {info(config.ticket_prefix)}")
 
     print(f"\n  {dim('Config locations:')}")
     print(f"    Local:  .cmrc (in current directory)")
@@ -94,9 +95,13 @@ def run_setup() -> int:
     print("\nInclude bullet points in commit body? [Y/n]: ", end='')
     include_body = input().strip().lower() != 'n'
 
-    print("\nMax subject line length (Enter for 50): ", end='')
+    print("\nMax subject line length (Enter for 72): ", end='')
     max_len_input = input().strip()
-    max_subject_length = int(max_len_input) if max_len_input.isdigit() else 50
+    max_subject_length = int(max_len_input) if max_len_input.isdigit() else 72
+
+    print(f"\nTicket reference prefix (Enter for Refs): ", end='')
+    print(dim("  e.g., Refs, Closes, Fixes"))
+    ticket_prefix = input().strip() or "Refs"
 
     config = Config(
         provider=provider,
@@ -104,6 +109,7 @@ def run_setup() -> int:
         style=style,
         include_body=include_body,
         max_subject_length=max_subject_length,
+        ticket_prefix=ticket_prefix,
     )
     path = save_config(config, global_config=True)
 
