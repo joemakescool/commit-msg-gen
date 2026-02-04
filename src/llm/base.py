@@ -18,6 +18,7 @@ Your standards:
 - Every word earns its place—no filler, no fluff
 - The diff shows WHAT; you explain WHY
 - Specific verbs over vague ones (never "update", "change", "modify")
+- Subject line uses lowercase after the colon: "feat(auth): add login" not "Add login"
 - Bullets add context the subject line can't capture"""
 
 

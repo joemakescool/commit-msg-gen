@@ -99,9 +99,24 @@ def print_warning(message: str) -> None:
     print(f"{warning('⚠')} {warning(message)}" if UNICODE_ENABLED else f"[!] {message}")
 
 
-def print_box(text: str, max_width: int = 66) -> None:
+def print_box(text: str) -> None:
+    import shutil
+    import textwrap
+
+    term_width = shutil.get_terminal_size((80, 24)).columns
+    # Box chrome takes 4 chars: "│ " + " │"
+    max_width = max(int(term_width * 0.8), 60) - 4
+
     lines = text.split('\n')
-    content_width = min(max(len(line) for line in lines), max_width)
+    wrapped_lines = []
+    for line in lines:
+        if len(line) > max_width:
+            indent = '  ' if line.startswith('- ') else ''
+            wrapped_lines.extend(textwrap.wrap(line, width=max_width, subsequent_indent=indent))
+        else:
+            wrapped_lines.append(line)
+
+    content_width = max(len(line) for line in wrapped_lines)
 
     if UNICODE_ENABLED:
         top = f'┌─{"─" * content_width}─┐'
@@ -113,7 +128,7 @@ def print_box(text: str, max_width: int = 66) -> None:
         side = '|'
 
     print(dim(top))
-    for line in lines:
+    for line in wrapped_lines:
         padding = ' ' * (content_width - len(line))
         print(f"{dim(side)} {line}{padding} {dim(side)}")
     print(dim(bottom))

@@ -19,7 +19,15 @@ def clean_commit_message(text: str) -> str:
             start_idx = i
             break
 
-    cleaned = '\n'.join(lines[start_idx:])
+    # Find where the actual message ends (cut off diff output, code blocks, etc.)
+    JUNK_PATTERNS = re.compile(r'^(diff --git |@@\s|[+-]{3}\s[ab]/|index [0-9a-f]|```)')
+    end_idx = len(lines)
+    for i in range(start_idx + 1, len(lines)):
+        if JUNK_PATTERNS.match(lines[i]):
+            end_idx = i
+            break
+
+    cleaned = '\n'.join(lines[start_idx:end_idx]).rstrip()
     lines = cleaned.split('\n')
     if lines:
         lines[0] = lines[0].strip('`').strip()
@@ -27,8 +35,8 @@ def clean_commit_message(text: str) -> str:
     return '\n'.join(lines)
 
 
-def copy_to_clipboard(text: str) -> bool:
-    """Copy text to clipboard. Works on Windows, Mac, Linux."""
+def copy_to_clipboard(text: str) -> tuple[bool, str]:
+    """Copy text to clipboard. Returns (success, failure_reason)."""
     try:
         if sys.platform == 'win32':
             subprocess.run(['clip'], input=text.encode('utf-8'), check=True)
@@ -39,9 +47,13 @@ def copy_to_clipboard(text: str) -> bool:
                 subprocess.run(['xclip', '-selection', 'clipboard'], input=text.encode('utf-8'), check=True)
             except FileNotFoundError:
                 subprocess.run(['xsel', '--clipboard', '--input'], input=text.encode('utf-8'), check=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-        return False
+        return True, ""
+    except FileNotFoundError:
+        if sys.platform == 'linux':
+            return False, "Install xclip or xsel: sudo apt install xclip"
+        return False, "No clipboard tool found"
+    except (subprocess.CalledProcessError, OSError) as e:
+        return False, f"Clipboard command failed: {e}"
 
 
 def display_options(options: list[str]) -> int | None:
