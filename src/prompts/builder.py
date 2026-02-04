@@ -15,7 +15,7 @@ class PromptConfig:
     file_count: int = 0
     style: str = "conventional"
     include_body: bool = True
-    max_subject_length: int = 50
+    max_subject_length: int = 72
 
 
 class PromptBuilder:
@@ -213,26 +213,32 @@ DO NOT output this analysis. Use it internally, then output ONLY the commit mess
             format_example = "type(scope): subject line"
 
         if config.num_options > 1:
-            body_example = "\n\n- bullet explaining implementation detail" if config.include_body else ""
-            body_example2 = "\n\n- bullet explaining user-facing benefit" if config.include_body else ""
+            n = config.num_options
+            body_example = "\n\n- bullet explaining the change" if config.include_body else ""
+
+            if n == 2:
+                approach_instructions = """Each option MUST take a meaningfully different approach:
+- Option 1: Focus on the TECHNICAL change (what was done to the code)
+- Option 2: Focus on the USER/BUSINESS impact (why it matters)"""
+            else:
+                approach_instructions = "Each option MUST take a meaningfully different angle on the change."
+
+            option_labels = "\n\n".join(
+                f"[Option {i}]\n{format_example}{body_example}" for i in range(1, n + 1)
+            )
+            label_list = ", ".join(f"[Option {i}]" for i in range(1, n + 1))
 
             return f"""<instructions>
-Generate exactly {config.num_options} SEPARATE commit message options.
+Generate exactly {n} SEPARATE commit message options.
 
-Each option MUST take a meaningfully different approach:
-- Option 1: Focus on the TECHNICAL change (what was done to the code)
-- Option 2: Focus on the USER/BUSINESS impact (why it matters)
+{approach_instructions}
 
 Format exactly like this:
 
-[Option 1]
-{format_example}{body_example}
-
-[Option 2]
-{format_example}{body_example2}
+{option_labels}
 
 IMPORTANT:
-- Include BOTH [Option 1] and [Option 2] labels exactly as shown
+- Include ALL {label_list} labels exactly as shown
 - No markdown, no extra explanation, no preamble
 </instructions>"""
         else:

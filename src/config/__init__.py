@@ -13,7 +13,8 @@ class Config:
     model: Optional[str] = None
     style: str = "conventional"
     include_body: bool = True
-    max_subject_length: int = 50
+    max_subject_length: int = 72
+    ticket_prefix: str = "Refs"
 
     def to_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items() if v is not None}

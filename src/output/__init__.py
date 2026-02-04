@@ -1,7 +1,10 @@
 """Terminal Output Formatting Package"""
 
+import re
 import sys
 import os
+import threading
+import time
 
 
 class Colors:
@@ -134,9 +137,74 @@ def print_box(text: str) -> None:
     print(dim(bottom))
 
 
+COMMIT_TYPE_COLORS = {
+    'feat': Colors.GREEN,
+    'fix': Colors.RED,
+    'refactor': Colors.YELLOW,
+    'docs': Colors.CYAN,
+    'test': Colors.MAGENTA,
+    'perf': Colors.GREEN,
+    'chore': Colors.DIM,
+    'style': Colors.DIM,
+    'ci': Colors.CYAN,
+    'build': Colors.CYAN,
+}
+
+
+def colorize_commit_type(message: str) -> str:
+    """Color the commit type prefix on the first line of a commit message."""
+    if not COLORS_ENABLED:
+        return message
+    lines = message.split('\n')
+    if not lines:
+        return message
+    match = re.match(r'^(\w+)(\([^)]*\))?(!?:)', lines[0])
+    if match:
+        commit_type = match.group(1)
+        color = COMMIT_TYPE_COLORS.get(commit_type)
+        if color:
+            prefix = match.group(0)
+            lines[0] = _colorize(prefix, Colors.BOLD, color) + lines[0][len(prefix):]
+    return '\n'.join(lines)
+
+
+class Spinner:
+    """Animated spinner for long operations. Use as context manager."""
+    FRAMES_UNICODE = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    FRAMES_ASCII = ['-', '\\', '|', '/']
+
+    def __init__(self):
+        self._thread = None
+        self._stop_event = threading.Event()
+        self._frames = self.FRAMES_UNICODE if UNICODE_ENABLED else self.FRAMES_ASCII
+
+    def _spin(self):
+        idx = 0
+        while not self._stop_event.is_set():
+            frame = self._frames[idx % len(self._frames)]
+            print(f'\r\033[K{frame} ', end='', flush=True)
+            idx += 1
+            self._stop_event.wait(0.08)
+
+    def __enter__(self):
+        if sys.stdout.isatty():
+            self._stop_event.clear()
+            self._thread = threading.Thread(target=self._spin, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *args):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join()
+        if sys.stdout.isatty():
+            print('\r\033[K', end='', flush=True)
+
+
 __all__ = [
     "Colors", "COLORS_ENABLED", "UNICODE_ENABLED",
     "CHECK", "CROSS", "ARROW", "BULLET",
     "success", "error", "warning", "info", "dim", "bold", "highlight",
     "print_success", "print_error", "print_warning", "print_box",
+    "colorize_commit_type", "Spinner", "COMMIT_TYPE_COLORS",
 ]

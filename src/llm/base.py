@@ -53,6 +53,8 @@ class LLMError(Exception):
 class LLMClient(ABC):
     """Abstract base for LLM clients."""
 
+    ticket_prefix: str = "Refs"
+
     @abstractmethod
     def generate(self, prompt: str) -> LLMResponse:
         pass
@@ -61,3 +63,7 @@ class LLMClient(ABC):
     @abstractmethod
     def name(self) -> str:
         pass
+
+    def format_ticket_reference(self, ticket: str) -> str:
+        """Format a ticket reference using the configured prefix."""
+        return f"{self.ticket_prefix}: {ticket.upper()}"
