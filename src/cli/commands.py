@@ -66,8 +66,12 @@ def run_setup() -> int:
 
     model = None
     if provider == 'ollama':
-        print(f"\nRecommended: llama3.2:3b, gemma3:4b, mistral:7b\n")
-        model = input("Model (Enter for default): ").strip() or None
+        print(f"\nRecommended models (7B+ for best results):")
+        print(f"  - mistral:7b      (fast, good quality)")
+        print(f"  - llama3.1:8b     (best overall)")
+        print(f"  - gemma2:9b       (detailed, slower)")
+        print(f"\nNote: 3B models often hallucinate. Use 7B+ for reliable results.\n")
+        model = input("Model (Enter for mistral:7b): ").strip() or "mistral:7b"
 
     print("\nCommit message style:\n")
     print("  1. conventional - type(scope): subject with bullets (default)")

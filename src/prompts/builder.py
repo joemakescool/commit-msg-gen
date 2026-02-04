@@ -120,70 +120,52 @@ Each bullet should:
         return thresholds[-1][1]
 
     def _build_examples_section(self, config: PromptConfig) -> str:
+        # Use abstract format examples - no concrete content to copy
+        warning = "CRITICAL: These show FORMAT only. Never use words from these examples. Analyze the ACTUAL diff below."
+
         if config.style == "simple":
             if config.include_body:
-                return """<examples>
-Example 1 - Simple fix:
-Handle expired token gracefully
+                return f"""<format-examples>
+{warning}
 
-- Return 401 with clear message instead of crashing
+[subject: imperative verb + what changed]
 
-Example 2 - Small feature:
-Add rate limiting to login endpoint
-
-- Limits to 5 attempts per minute per IP
-- Returns 429 with retry-after header when exceeded
-</examples>"""
+- [bullet: specific detail from the diff]
+- [bullet: another detail if needed]
+</format-examples>"""
             else:
-                return """<examples>
-Example 1: Handle expired token gracefully
-Example 2: Add rate limiting to login endpoint
-Example 3: Extract query builders into separate module
-</examples>"""
+                return f"""<format-examples>
+{warning}
+
+[subject: imperative verb + what changed]
+</format-examples>"""
         elif config.style == "detailed":
-            return """<examples>
-Example 1 - Fix with context:
-fix(auth): handle expired token gracefully in session middleware
+            return f"""<format-examples>
+{warning}
 
-- Return 401 with clear error message instead of throwing unhandled exception
-- Add specific error code AUTH_TOKEN_EXPIRED for client-side handling
-- Log token expiry events for security monitoring
+type(scope): [imperative verb + what changed]
 
-Example 2 - Feature with full detail:
-feat(api): add rate limiting to login endpoint with Redis backing
-
-- Implements sliding window rate limit of 5 attempts per minute per IP
-- Returns 429 status with Retry-After header when limit exceeded
-- Uses Redis for distributed rate limiting across multiple instances
-- Adds configuration options for limit thresholds in environment variables
-</examples>"""
+- [bullet: specific implementation detail]
+- [bullet: why this approach was chosen]
+- [bullet: what problem this solves]
+- [bullet: any notable side effects]
+</format-examples>"""
         else:
             if config.include_body:
-                return """<examples>
-Example 1 - Simple fix (1 bullet):
-fix(auth): handle expired token gracefully
+                return f"""<format-examples>
+{warning}
 
-- Return 401 with clear message instead of crashing
+type(scope): [imperative verb + what changed]
 
-Example 2 - Small feature (2 bullets):
-feat(api): add rate limiting to login endpoint
-
-- Limits to 5 attempts per minute per IP
-- Returns 429 with retry-after header when exceeded
-
-Example 3 - Medium refactor (3 bullets):
-refactor(db): extract query builders into separate module
-
-- Moved complex queries from UserService to QueryBuilder class
-- Reduces duplication across 4 service files
-- Makes query logic easier to test in isolation
-</examples>"""
+- [bullet: specific detail from the diff]
+- [bullet: why or impact if relevant]
+</format-examples>"""
             else:
-                return """<examples>
-Example 1: fix(auth): handle expired token gracefully
-Example 2: feat(api): add rate limiting to login endpoint
-Example 3: refactor(db): extract query builders into separate module
-</examples>"""
+                return f"""<format-examples>
+{warning}
+
+type(scope): [imperative verb + what changed]
+</format-examples>"""
 
     def _build_diff_section(self, diff: ProcessedDiff) -> str:
         parts = [

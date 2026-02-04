@@ -1,5 +1,7 @@
 # cm
 
+![cm - AI-powered commit message generator](banner.svg)
+
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![GitHub](https://img.shields.io/badge/github-joemakescool/commit--msg--gen-black.svg)](https://github.com/joemakescool/commit-msg-gen)
@@ -179,6 +181,7 @@ Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
 |----------|-------------|
 | `CM_PROVIDER` | Override provider: `ollama` or `claude` |
 | `CM_MODEL` | Override model name |
+| `CM_TIMEOUT` | Request timeout in seconds (default: 300). Increase for slow CPU inference. |
 | `ANTHROPIC_API_KEY` | Claude API key |
 | `OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 
@@ -206,11 +209,16 @@ Use `!` for breaking changes: `feat!(api): remove deprecated endpoint`
 [Install Ollama](https://ollama.ai), then:
 
 ```bash
-ollama pull llama3.2:3b   # Fast, good quality
+ollama pull mistral:7b    # Recommended - fast and reliable
 ollama serve              # Start the server
 ```
 
-**Recommended models:** `llama3.2:3b` (fast), `gemma3:4b` (balanced), `mistral:7b` (detailed)
+**Recommended models (7B+ for best results):**
+- `mistral:7b` - Fast, good quality (recommended)
+- `llama3.1:8b` - Best overall
+- `gemma2:9b` - Most detailed, slower
+
+**Note:** 3B models often hallucinate and ignore the diff. Use 7B+ for reliable results.
 
 **Pro tip:** Pre-load the model for faster first response:
 ```bash
@@ -236,8 +244,9 @@ $env:ANTHROPIC_API_KEY = "sk-ant-..."   # PowerShell
 | "Model not found" | Run `ollama pull <model-name>` |
 | "No staged changes" | Run `git add .` first |
 | Clipboard not working | Use `cm --no-copy` and copy manually |
-| Slow response | Try a smaller model: `cm -m llama3.2:3b` |
-| Bad message quality | Try a bigger model: `cm -m mistral:7b` |
+| Hallucinated messages | Use 7B+ model: `cm -m mistral:7b` (3B models often ignore the diff) |
+| Slow response | Try `mistral:7b` (faster than larger models) |
+| Timeout on CPU | Increase timeout: `set CM_TIMEOUT=600` or pre-load: `cm --warmup` |
 
 </details>
 

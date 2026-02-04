@@ -14,11 +14,13 @@ class OllamaClient(LLMClient):
 
     DEFAULT_MODEL = "mistral:7b"
     DEFAULT_HOST = "http://localhost:11434"
+    DEFAULT_TIMEOUT = 300  # 5 minutes for CPU inference
     MAX_RETRIES = 2
 
     def __init__(self, model: str | None = None, host: str | None = None):
         self.model = model or self.DEFAULT_MODEL
         self.host = host or os.environ.get("OLLAMA_HOST", self.DEFAULT_HOST)
+        self.timeout = int(os.environ.get("CM_TIMEOUT", self.DEFAULT_TIMEOUT))
         self._verify_connection()
 
     @property
@@ -62,7 +64,7 @@ class OllamaClient(LLMClient):
         try:
             data = json.dumps(payload).encode('utf-8')
             req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=180):
+            with urllib.request.urlopen(req, timeout=self.timeout):
                 pass
         except (urllib.error.URLError, urllib.error.HTTPError):
             pass
@@ -85,7 +87,7 @@ class OllamaClient(LLMClient):
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
 
-        with urllib.request.urlopen(req, timeout=180) as response:
+        with urllib.request.urlopen(req, timeout=self.timeout) as response:
             return json.loads(response.read().decode('utf-8'))
 
     def generate(self, prompt: str) -> LLMResponse:
@@ -119,12 +121,12 @@ class OllamaClient(LLMClient):
                 raise LLMError(f"Ollama error ({e.code}): {e.reason}")
             except urllib.error.URLError as e:
                 if isinstance(e.reason, socket.timeout):
-                    raise LLMError(f"Request timed out. Try a smaller model:\n  cm -m llama3.2:3b")
+                    raise LLMError(f"Request timed out after {self.timeout}s. Try:\n  - Pre-load model: cm --warmup\n  - Increase timeout: set CM_TIMEOUT=600")
                 if "Connection refused" in str(e):
                     raise LLMError("Ollama not running. Start with: ollama serve")
                 raise LLMError(f"Ollama request failed: {e}")
             except socket.timeout:
-                raise LLMError(f"Request timed out. Try a smaller model:\n  cm -m llama3.2:3b")
+                raise LLMError(f"Request timed out after {self.timeout}s. Try:\n  - Pre-load model: cm --warmup\n  - Increase timeout: set CM_TIMEOUT=600")
             except json.JSONDecodeError:
                 raise LLMError("Invalid response from Ollama")
 
