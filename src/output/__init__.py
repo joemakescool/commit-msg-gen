@@ -169,7 +169,7 @@ def colorize_commit_type(message: str) -> str:
 
 
 class Spinner:
-    """Animated spinner for long operations. Use as context manager."""
+    """Animated inline spinner. Overwrites one character in-place after existing text."""
     FRAMES_UNICODE = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
     FRAMES_ASCII = ['-', '\\', '|', '/']
 
@@ -182,12 +182,15 @@ class Spinner:
         idx = 0
         while not self._stop_event.is_set():
             frame = self._frames[idx % len(self._frames)]
-            print(f'\r\033[K{frame} ', end='', flush=True)
+            sys.stdout.write(f'\b{frame}')
+            sys.stdout.flush()
             idx += 1
             self._stop_event.wait(0.08)
 
     def __enter__(self):
         if sys.stdout.isatty():
+            sys.stdout.write(' ')
+            sys.stdout.flush()
             self._stop_event.clear()
             self._thread = threading.Thread(target=self._spin, daemon=True)
             self._thread.start()
@@ -198,7 +201,8 @@ class Spinner:
         if self._thread:
             self._thread.join()
         if sys.stdout.isatty():
-            print('\r\033[K', end='', flush=True)
+            sys.stdout.write('\b \b')
+            sys.stdout.flush()
 
 
 __all__ = [

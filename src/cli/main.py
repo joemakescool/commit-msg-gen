@@ -220,6 +220,13 @@ def main() -> int:
                 _copy_and_report(message, args.no_copy)
             break
         elif action == 'r':
+            try:
+                regen_hint = input(f"{dim('  Hint (Enter to skip): ')}").strip()
+            except (KeyboardInterrupt, EOFError):
+                break
+            if regen_hint:
+                prompt_config.hint = regen_hint
+                prompt = PromptBuilder().build(processed, prompt_config)
             print(f"\nRegenerating... ", end='', flush=True)
             continue
         else:
