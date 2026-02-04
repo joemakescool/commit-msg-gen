@@ -2,6 +2,7 @@
 
 import os
 import json
+import http.client
 import socket
 import urllib.request
 import urllib.error
@@ -128,6 +129,10 @@ class OllamaClient(LLMClient):
             except socket.timeout:
                 raise LLMError(f"Request timed out after {self.timeout}s. Try:\n  - Pre-load model: cm --warmup\n  - Increase timeout: set CM_TIMEOUT=600")
             except json.JSONDecodeError:
-                raise LLMError("Invalid response from Ollama")
+                raise LLMError("Invalid response from Ollama. Try a different model or simpler change.")
+            except http.client.HTTPException as e:
+                raise LLMError(f"Incomplete response from Ollama: {e}. The model may have run out of memory.")
+            except OSError as e:
+                raise LLMError(f"Connection to Ollama lost: {e}. Check that 'ollama serve' is still running.")
 
         raise LLMError(f"Failed after {self.MAX_RETRIES} retries: {last_error}")

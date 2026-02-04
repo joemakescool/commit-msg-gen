@@ -14,7 +14,11 @@
       "Bash(reg query \"HKCU\\\\Environment\")",
       "Bash(reg query:*)",
       "Bash(curl:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(where:*)",
+      "Bash(pip show:*)",
+      "Bash(dir:*)",
+      "Bash(del \"C:\\\\Users\\\\vanil\\\\bin\\\\cm.bat\")"
     ]
   }
 }

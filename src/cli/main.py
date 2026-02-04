@@ -9,7 +9,7 @@ from src.config import load_config
 from src.git import GitAnalyzer, GitError, DiffProcessor
 from src.llm import get_client, LLMError, OllamaClient
 from src.prompts import PromptBuilder, PromptConfig
-from src.output import success, info, dim, bold, print_error, print_box, CHECK
+from src.output import success, warning, info, dim, bold, print_error, CHECK
 
 from src.cli.args import parse_args
 from src.cli.commands import display_config, run_setup, run_install_completion, run_warmup
@@ -152,16 +152,21 @@ def main() -> int:
         message = f"{message}\n\nRefs: {ticket}"
 
     # Output
-    print()
-    print_box(message)
+    lines = message.split('\n')
+    width = max(len(line) for line in lines)
+    print(f"\n{dim('─' * width)}")
+    print(bold(lines[0]))
+    for line in lines[1:]:
+        print(line)
+    print(dim('─' * width))
 
     # Copy to clipboard
     if not args.no_copy:
-        if copy_to_clipboard(message):
-            print(f"\n{success(CHECK)} Copied to clipboard!")
-            print(dim("Run: git commit → paste in editor, or:"))
-            print(dim("     git commit -m \"<paste>\""))
+        copied, reason = copy_to_clipboard(message)
+        if copied:
+            print(f"{success(CHECK)} Copied to clipboard!")
         else:
-            print(f"\n{dim('(Could not copy to clipboard)')}")
+            print(f"{warning('!')} Could not copy to clipboard{': ' + reason if reason else ''}")
+            print(dim("  Select the message above to copy manually."))
 
     return 0

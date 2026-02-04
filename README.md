@@ -13,14 +13,13 @@ $ git add .
 $ cm
 Analyzing 3 files... using Claude... done!
 
-┌────────────────────────────────────────────────────────────┐
-│ feat(auth): add JWT refresh token rotation                 │
-│                                                            │
-│ - Implement automatic token refresh before expiry          │
-│ - Add refresh token storage in httpOnly cookies            │
-│ - Include token family tracking for reuse detection        │
-└────────────────────────────────────────────────────────────┘
+───────────────────────────────────────────────────────
+feat(auth): add JWT refresh token rotation
 
+- implement automatic token refresh before expiry
+- add refresh token storage in httpOnly cookies
+- include token family tracking for reuse detection
+───────────────────────────────────────────────────────
 ✓ Copied to clipboard!
 
 $ git commit -m "<paste>"
@@ -58,9 +57,9 @@ pip install git+https://github.com/joemakescool/commit-msg-gen.git
 
 If `cm` isn't recognized after install, add Python Scripts to your PATH:
 
-**Step 1:** Find your Python Scripts path:
+**Step 1:** Find where pip installed `cm`:
 ```powershell
-python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+python -c "import site; print(site.getusersitepackages().replace('site-packages','Scripts'))"
 ```
 
 **Step 2:** Add to PATH (pick one):
@@ -68,12 +67,12 @@ python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
 *GUI method:*
 1. Press `Win + R`, type `sysdm.cpl`, press Enter
 2. Advanced → Environment Variables
-3. Edit `Path` under User variables → Add the scripts path
+3. Edit `Path` under User variables → Add the scripts path from Step 1
 4. Restart terminal
 
 *PowerShell method:*
 ```powershell
-$scriptsPath = python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+$scriptsPath = python -c "import site; print(site.getusersitepackages().replace('site-packages','Scripts'))"
 if (!(Test-Path $PROFILE)) { New-Item $PROFILE -Force }
 Add-Content $PROFILE "`n`$env:PATH += `";$scriptsPath`""
 . $PROFILE
