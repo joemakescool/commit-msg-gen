@@ -1,132 +1,141 @@
-# Commit Message Generator (cm)
+# cm
 
-![Banner](banner.svg)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/badge/github-joemakescool/commit--msg--gen-black.svg)](https://github.com/joemakescool/commit-msg-gen)
 
-AI-powered commit message generator. Analyzes your staged changes, generates a descriptive message, copies it to your clipboard.
+**AI-powered git commit messages.** Stage your changes, run `cm`, paste the result.
 
-## Installation
+```
+$ git add .
+$ cm
+Analyzing 3 files... using Claude... done!
 
-**Option 1: Direct install from GitHub (recommended)**
-```bash
-pip install git+https://github.com/joemakescool/commit-msg-gen.git
+┌────────────────────────────────────────────────────────────┐
+│ feat(auth): add JWT refresh token rotation                 │
+│                                                            │
+│ - Implement automatic token refresh before expiry          │
+│ - Add refresh token storage in httpOnly cookies            │
+│ - Include token family tracking for reuse detection        │
+└────────────────────────────────────────────────────────────┘
+
+✓ Copied to clipboard!
+
+$ git commit -m "<paste>"
 ```
 
-**Option 2: Clone first, then install**
-```bash
-git clone https://github.com/joemakescool/commit-msg-gen.git
-cd commit-msg-gen
-pip install .
-```
+## Why cm?
 
-> **Windows users:** If `pip` isn't recognized, use `python -m pip` instead.
-
-> **PATH issue?** If `cm` isn't recognized after install, you need to add Python Scripts to your PATH:
->
-> **Step 1:** Find your Python Scripts path:
-> ```powershell
-> python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
-> ```
-> This will output something like: `C:\Users\YourName\AppData\Local\Python\Python312\Scripts`
->
-> **Step 2:** Add to PATH (pick one method):
->
-> *Method A - Permanent (GUI):*
-> 1. Press `Win + R`, type `sysdm.cpl`, press Enter
-> 2. Click "Advanced" tab → "Environment Variables"
-> 3. Under "User variables", select `Path` → "Edit"
-> 4. Click "New" → paste the Scripts path from Step 1
-> 5. Click "OK" on all dialogs
-> 6. Restart your terminal
->
-> *Method B - Permanent (PowerShell):*
-> ```powershell
-> # Get the scripts path
-> $scriptsPath = python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
->
-> # Add to your PowerShell profile (creates file if needed)
-> if (!(Test-Path $PROFILE)) { New-Item $PROFILE -Force }
-> Add-Content $PROFILE "`n`$env:PATH += `";$scriptsPath`""
->
-> # Reload profile
-> . $PROFILE
-> ```
->
-> **Step 3:** Verify it works:
-> ```powershell
-> cm --version
-> ```
-
-That's it. The `cm` command is now available globally.
+- **Understands context** — Analyzes your actual diff, not just file names
+- **Conventional commits** — Proper `type(scope): subject` format out of the box
+- **Works offline** — Use Ollama for free, local generation
+- **Zero friction** — Copies to clipboard automatically
 
 ## Quick Start
 
 ```bash
-# 1. Configure your AI provider (one time)
-cm --setup
+# Install
+pip install git+https://github.com/joemakescool/commit-msg-gen.git
 
-# 2. Use it
-git add .                   # stage the files you want to commit
-cm                          # generates message → copies to clipboard
-git commit -m "<paste>"     # paste and commit
+# Use
+git add .
+cm
+git commit   # paste the message
 ```
 
-## How It Works
+That's it. Works immediately with [Ollama](https://ollama.ai) if you have it running, or configure Claude API with `cm --setup`.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  You stage files: git add .                                 │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  You run: cm                                                │
-│                                                             │
-│  1. Reads your STAGED changes only                          │
-│  2. Filters out noise (lock files, node_modules, etc.)      │
-│  3. Sends to AI (Ollama or Claude)                          │
-│  4. Copies generated message to clipboard                   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  You commit: git commit -m "Ctrl+V"                         │
-└─────────────────────────────────────────────────────────────┘
+## Installation
+
+```bash
+pip install git+https://github.com/joemakescool/commit-msg-gen.git
 ```
 
-## Example Output
+<details>
+<summary><strong>Windows PATH issues?</strong></summary>
 
-```
-Analyzing 5 files... using Ollama (gemma3:4b)... done!
+If `cm` isn't recognized after install, add Python Scripts to your PATH:
 
-┌────────────────────────────────────────────────────────────────────┐
-│ feat(api): add user authentication endpoint                        │
-│                                                                    │
-│ - Implement JWT-based login in AuthController                      │
-│ - Added password hashing with bcrypt for security                  │
-│                                                                    │
-│ Refs: SITLA-1234                                                   │
-└────────────────────────────────────────────────────────────────────┘
-
-✓ Copied to clipboard!
+**Step 1:** Find your Python Scripts path:
+```powershell
+python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
 ```
 
-## Commands
+**Step 2:** Add to PATH (pick one):
 
-| Command | What it does |
-|---------|--------------|
-| `cm` | Generate message → copies to clipboard |
+*GUI method:*
+1. Press `Win + R`, type `sysdm.cpl`, press Enter
+2. Advanced → Environment Variables
+3. Edit `Path` under User variables → Add the scripts path
+4. Restart terminal
+
+*PowerShell method:*
+```powershell
+$scriptsPath = python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+if (!(Test-Path $PROFILE)) { New-Item $PROFILE -Force }
+Add-Content $PROFILE "`n`$env:PATH += `";$scriptsPath`""
+. $PROFILE
+```
+
+**Step 3:** Verify: `cm --version`
+
+</details>
+
+## Usage
+
+### Basic
+
+```bash
+cm                          # Generate and copy to clipboard
+cm --no-copy                # Print only
+cm --verbose                # Show token usage and timing
+```
+
+### Guide the AI
+
+```bash
+cm --hint "fixing the auth bug"   # Add context
+cm -t fix                          # Force commit type
+cm -j PROJ-123                     # Append JIRA ticket
+cm -c                              # Generate 2 options, pick one
+```
+
+### Style Options
+
+```bash
+cm -s conventional          # feat(scope): subject + bullets (default)
+cm -s simple                # Plain subject + bullets
+cm -s detailed              # More comprehensive bullets
+cm --no-body                # Subject line only
+```
+
+### Provider Selection
+
+```bash
+cm -p ollama                # Use local Ollama
+cm -p claude                # Use Claude API
+cm -m mistral:7b            # Specify model
+```
+
+### All Commands
+
+| Command | Description |
+|---------|-------------|
+| `cm` | Generate message, copy to clipboard |
 | `cm -c` | Choose from 2 options |
-| `cm -j PROJ-123` | Add JIRA ticket to message |
-| `cm --hint "fixing login"` | Add context for better messages |
-| `cm -t fix` | Force a commit type |
-| `cm -s simple` | Use simple style (no type prefix) |
-| `cm --no-body` | Generate subject line only |
-| `cm --setup` | Configure AI provider and preferences |
-| `cm --display-config` | Show current configuration |
-| `cm --warmup` | Pre-load Ollama model into memory |
-| `cm --install-completion` | Install shell tab completion |
-| `cm --no-copy` | Print only, don't copy |
-| `cm --verbose` | Show debug info (tokens, prompt size) |
+| `cm --hint TEXT` | Add context for better messages |
+| `cm -t TYPE` | Force commit type (feat, fix, etc.) |
+| `cm -j TICKET` | Append JIRA reference |
+| `cm -s STYLE` | Set style: conventional, simple, detailed |
+| `cm --no-body` | Subject line only |
+| `cm -p PROVIDER` | Use: auto, ollama, claude |
+| `cm -m MODEL` | Specify model name |
+| `cm --warmup` | Pre-load Ollama model |
+| `cm --no-copy` | Don't copy to clipboard |
+| `cm --verbose` | Show debug info |
+| `cm --setup` | Configure defaults |
+| `cm --display-config` | Show current config |
+| `cm --install-completion` | Shell tab completion |
 | `cm -v` | Show version |
 
 ## Configuration
@@ -173,18 +182,6 @@ Run `cm --setup` to configure defaults, or create a `.cmrc` file manually.
 | `ANTHROPIC_API_KEY` | Claude API key |
 | `OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `cm` not recognized | Re-run `pip install .` or restart terminal |
-| "Ollama not running" | Run `ollama serve` in another terminal |
-| "Model not found" | Run `ollama pull <model-name>` |
-| "No staged changes" | Run `git add .` first |
-| Clipboard not working | Use `cm --no-copy` and copy manually |
-| Slow response | Try a smaller model: `cm -m llama3.2:3b` |
-| Bad message quality | Try a bigger model: `cm -m mistral:7b` |
-
 ## Commit Types
 
 | Type | When to use |
@@ -206,66 +203,68 @@ Use `!` for breaking changes: `feat!(api): remove deprecated endpoint`
 
 ### Ollama (Free, Local)
 
-```powershell
-# Install from https://ollama.ai
-ollama pull gemma3:4b    # or llama3.2:3b, mistral:7b
-ollama serve
+[Install Ollama](https://ollama.ai), then:
+
+```bash
+ollama pull llama3.2:3b   # Fast, good quality
+ollama serve              # Start the server
 ```
 
-### Claude API (Paid)
+**Recommended models:** `llama3.2:3b` (fast), `gemma3:4b` (balanced), `mistral:7b` (detailed)
 
-```powershell
-$env:ANTHROPIC_API_KEY = "your-key"
+**Pro tip:** Pre-load the model for faster first response:
+```bash
+cm --warmup
 ```
 
-## Message Format
+### Claude API
 
-**Conventional (default):**
-```
-type(scope): short subject line
+Get an API key from [Anthropic](https://console.anthropic.com), then:
 
-- What changed (the main thing)
-- Why it was needed (the problem)
-```
-
-**Simple:**
-```
-Short subject line
-
-- What changed (the main thing)
-- Why it was needed (the problem)
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."   # Linux/macOS
+$env:ANTHROPIC_API_KEY = "sk-ant-..."   # PowerShell
 ```
 
-**Subject only (`--no-body`):**
+<details>
+<summary><strong>Troubleshooting</strong></summary>
+
+| Problem | Solution |
+|---------|----------|
+| `cm` not recognized | Re-run `pip install .` or restart terminal |
+| "Ollama not running" | Run `ollama serve` in another terminal |
+| "Model not found" | Run `ollama pull <model-name>` |
+| "No staged changes" | Run `git add .` first |
+| Clipboard not working | Use `cm --no-copy` and copy manually |
+| Slow response | Try a smaller model: `cm -m llama3.2:3b` |
+| Bad message quality | Try a bigger model: `cm -m mistral:7b` |
+
+</details>
+
+<details>
+<summary><strong>Project Structure</strong></summary>
+
 ```
-type(scope): short subject line
+src/
+├── cli/                 # Command-line interface
+│   ├── args.py          # Argument parsing
+│   ├── commands.py      # Setup, config, warmup
+│   ├── main.py          # Entry point
+│   └── utils.py         # Clipboard, formatting
+├── config/              # Configuration management
+├── git/                 # Git operations
+│   ├── analyzer.py      # Extract staged changes
+│   └── diff_processor.py # Filter and prioritize diffs
+├── llm/                 # LLM providers
+│   ├── base.py          # Abstract client, system prompt
+│   ├── claude.py        # Anthropic API
+│   └── ollama.py        # Local Ollama
+├── output/              # Terminal colors and formatting
+└── prompts/             # Prompt construction
+    └── builder.py       # Build context for LLM
 ```
 
-## Project Structure
-
-```
-commit-msg-gen/
-├── src/
-│   ├── __init__.py          # Package root, version, commit types
-│   ├── cli/                 # Command-line interface
-│   │   ├── args.py          # Argument parsing
-│   │   ├── commands.py      # Setup, config display, warmup
-│   │   ├── main.py          # Entry point
-│   │   └── utils.py         # Clipboard, message cleaning
-│   ├── config/              # Configuration management
-│   ├── git/                 # Git operations
-│   │   ├── analyzer.py      # Staged changes extraction
-│   │   └── diff_processor.py # Diff → LLM context
-│   ├── llm/                 # LLM clients
-│   │   ├── base.py          # Base classes, system prompt
-│   │   ├── claude.py        # Anthropic API
-│   │   └── ollama.py        # Local Ollama
-│   ├── output/              # Terminal formatting
-│   └── prompts/             # Prompt construction
-│       └── builder.py       # PromptBuilder
-├── pyproject.toml
-└── README.md
-```
+</details>
 
 ## License
 
