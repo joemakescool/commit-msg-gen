@@ -7,7 +7,7 @@ import sys
 import tempfile
 
 from src import COMMIT_TYPE_NAMES
-from src.output import bold
+from src.output import bold, dim, info, colorize_commit_type
 
 TYPES_PATTERN = '|'.join(COMMIT_TYPE_NAMES)
 
@@ -58,12 +58,38 @@ def copy_to_clipboard(text: str) -> tuple[bool, str]:
         return False, f"Clipboard command failed: {e}"
 
 
+def _format_option(message: str, option_num: int) -> str:
+    """Format a single option with colored type and clear visual hierarchy."""
+    colored = colorize_commit_type(message)
+    lines = colored.split('\n')
+
+    # Build formatted output with colored option number
+    parts = [f"{info(f'[{option_num}]')} {bold(lines[0])}"]
+
+    # Add body lines with proper indentation
+    body_lines = [line for line in lines[1:] if line.strip()]
+    if body_lines:
+        parts.append("")  # Blank line between subject and body
+        for line in body_lines:
+            # Dim the bullet character for visual hierarchy
+            if line.strip().startswith('-'):
+                line = line.replace('-', dim('-'), 1)
+            parts.append(f"    {line}")
+
+    return '\n'.join(parts)
+
+
 def display_options(options: list[str]) -> int | None:
-    """Show options and get selection."""
+    """Show options and get selection with formatted display."""
     print()
     for i, opt in enumerate(options, 1):
-        print(f"{bold(f'[{i}]')}\n{opt}\n")
+        print(_format_option(opt, i))
+        if i < len(options):
+            print()  # Blank line
+            print(dim("    · · ·"))  # Subtle separator
+            print()  # Blank line
 
+    print()  # Space before prompt
     while True:
         try:
             choice = input(f"Select [1-{len(options)}] or (q)uit: ").strip().lower()
