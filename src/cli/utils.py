@@ -10,6 +10,7 @@ from src import COMMIT_TYPE_NAMES
 from src.output import bold, dim, info, colorize_commit_type
 
 TYPES_PATTERN = '|'.join(COMMIT_TYPE_NAMES)
+_JUNK_RE = re.compile(r'^(diff --git |@@\s|[+-]{3}\s[ab]/|index [0-9a-f]|```)')
 
 
 def clean_commit_message(text: str) -> str:
@@ -20,12 +21,9 @@ def clean_commit_message(text: str) -> str:
         if re.match(rf'^[`\s]*({TYPES_PATTERN})[\(!:]', line):
             start_idx = i
             break
-
-    # Find where the actual message ends (cut off diff output, code blocks, etc.)
-    JUNK_PATTERNS = re.compile(r'^(diff --git |@@\s|[+-]{3}\s[ab]/|index [0-9a-f]|```)')
     end_idx = len(lines)
     for i in range(start_idx + 1, len(lines)):
-        if JUNK_PATTERNS.match(lines[i]):
+        if _JUNK_RE.match(lines[i]):
             end_idx = i
             break
 

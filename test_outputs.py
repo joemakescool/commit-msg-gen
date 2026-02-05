@@ -7,12 +7,9 @@ Usage:
   python test_outputs.py -m mistral:7b  # use different model
 """
 
-import sys
-sys.path.insert(0, 'src')
-
-from diff_processor import ProcessedDiff
-from prompt_builder import PromptBuilder, PromptConfig
-from llm_client import get_client, LLMError
+from src.git.diff_processor import ProcessedDiff
+from src.prompts.builder import PromptBuilder, PromptConfig
+from src.llm import get_client, LLMError
 
 # Sample scenarios to test
 SCENARIOS = {

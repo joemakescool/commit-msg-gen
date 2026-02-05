@@ -4,7 +4,7 @@ Commit Message Generator
 AI-powered commit message generation from staged git changes.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 # Centralized commit types - single source of truth
 # Used by: prompt_builder.py, llm_client.py (validation), cli.py (argparse)
