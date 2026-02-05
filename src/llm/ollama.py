@@ -48,10 +48,14 @@ class OllamaClient(LLMClient):
         except (urllib.error.URLError, json.JSONDecodeError):
             return False
 
-    def warmup(self) -> None:
-        """Pre-load the model with a tiny request."""
+    def warmup(self) -> bool:
+        """Pre-load the model with a tiny request.
+
+        Returns:
+            True if model was loaded successfully, False otherwise.
+        """
         if self._is_model_loaded():
-            return
+            return True
 
         url = f"{self.host}/api/generate"
         payload = {
@@ -66,9 +70,9 @@ class OllamaClient(LLMClient):
             data = json.dumps(payload).encode('utf-8')
             req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=self.timeout):
-                pass
+                return True
         except (urllib.error.URLError, urllib.error.HTTPError):
-            pass
+            return False
 
     def _call_api(self, prompt: str) -> dict:
         """Make a single API call to Ollama."""

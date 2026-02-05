@@ -73,7 +73,7 @@ class TestDisplayFileList:
             ("src/utils/__init__.py", 1, 0),
             ("tests/test_validator.py", 22, 0),
         ])
-        _display_file_list(p)
+        _display_file_list(p, max_shown=8)
         out = capsys.readouterr().out
 
         assert "Staged changes:" in out
@@ -86,7 +86,7 @@ class TestDisplayFileList:
         """12 files — first 8 shown, rest collapsed."""
         files = [(f"src/mod_{i}.py", 10 + i, i) for i in range(12)]
         p = make_processed(files)
-        _display_file_list(p)
+        _display_file_list(p, max_shown=8)
         out = capsys.readouterr().out
 
         # First 8 visible
@@ -99,7 +99,7 @@ class TestDisplayFileList:
     def test_shows_filtered_count(self, capsys, make_processed):
         """Noise file count appears when files are filtered."""
         p = make_processed([("src/app.py", 5, 2)], filtered=3)
-        _display_file_list(p)
+        _display_file_list(p, max_shown=8)
         out = capsys.readouterr().out
 
         assert "3 noise files filtered" in out
@@ -107,7 +107,7 @@ class TestDisplayFileList:
     def test_hides_filtered_when_zero(self, capsys, make_processed):
         """No noise line when nothing was filtered."""
         p = make_processed([("src/app.py", 5, 2)], filtered=0)
-        _display_file_list(p)
+        _display_file_list(p, max_shown=8)
         out = capsys.readouterr().out
 
         assert "noise" not in out
@@ -115,7 +115,7 @@ class TestDisplayFileList:
     def test_empty_details_prints_nothing(self, capsys, make_processed):
         """No output for empty file list."""
         p = make_processed([])
-        _display_file_list(p)
+        _display_file_list(p, max_shown=8)
         out = capsys.readouterr().out
 
         assert out == ""
@@ -206,11 +206,11 @@ class TestCleanCommitMessage:
 @pytest.fixture
 def simulate_console(capsys, make_processed, strip_ansi, print_sample):
     """Return a function that reproduces the full cm console flow."""
-    def _simulate(*, files, filtered, provider, message):
+    def _simulate(*, files, filtered, provider, message, max_shown=8):
         processed = make_processed(files, filtered=filtered)
 
         # 1. File list
-        _display_file_list(processed)
+        _display_file_list(processed, max_shown=max_shown)
 
         # 2. Status line (mock)
         total = len(files) + filtered

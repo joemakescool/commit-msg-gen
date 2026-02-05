@@ -70,12 +70,24 @@ class DiffProcessor:
         r'README', r'CHANGELOG', r'LICENSE',
     ]
 
+    # Pre-compiled regex patterns (class-level to avoid recompilation per instance)
+    _NOISE_RE: list[re.Pattern] = None
+    _TEST_RE: list[re.Pattern] = None
+    _CONFIG_RE: list[re.Pattern] = None
+    _DOCS_RE: list[re.Pattern] = None
+
+    @classmethod
+    def _compile_patterns(cls):
+        """Compile regex patterns once at class level."""
+        if cls._NOISE_RE is None:
+            cls._NOISE_RE = [re.compile(p, re.IGNORECASE) for p in cls.NOISE_PATTERNS]
+            cls._TEST_RE = [re.compile(p, re.IGNORECASE) for p in cls.TEST_PATTERNS]
+            cls._CONFIG_RE = [re.compile(p, re.IGNORECASE) for p in cls.CONFIG_PATTERNS]
+            cls._DOCS_RE = [re.compile(p, re.IGNORECASE) for p in cls.DOCS_PATTERNS]
+
     def __init__(self, config: ProcessorConfig | None = None):
         self.config = config or ProcessorConfig()
-        self._noise_re = [re.compile(p, re.IGNORECASE) for p in self.NOISE_PATTERNS]
-        self._test_re = [re.compile(p, re.IGNORECASE) for p in self.TEST_PATTERNS]
-        self._config_re = [re.compile(p, re.IGNORECASE) for p in self.CONFIG_PATTERNS]
-        self._docs_re = [re.compile(p, re.IGNORECASE) for p in self.DOCS_PATTERNS]
+        self._compile_patterns()
 
     def process(self, changes: StagedChanges) -> ProcessedDiff:
         """Main entry point: raw changes -> LLM-ready context."""
@@ -103,13 +115,13 @@ class DiffProcessor:
         return [(f, self._get_priority(f.path)) for f in files]
 
     def _get_priority(self, path: str) -> Priority:
-        if any(p.search(path) for p in self._noise_re):
+        if any(p.search(path) for p in self._NOISE_RE):
             return Priority.NOISE
-        if any(p.search(path) for p in self._test_re):
+        if any(p.search(path) for p in self._TEST_RE):
             return Priority.TEST
-        if any(p.search(path) for p in self._docs_re):
+        if any(p.search(path) for p in self._DOCS_RE):
             return Priority.DOCS
-        if any(p.search(path) for p in self._config_re):
+        if any(p.search(path) for p in self._CONFIG_RE):
             return Priority.CONFIG
         return Priority.SOURCE
 

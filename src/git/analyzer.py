@@ -18,11 +18,24 @@ class FileChange:
 
     @property
     def directory(self) -> str:
-        """Extract the top-level directory for scope detection."""
+        """Extract the directory for scope detection.
+
+        For paths under src/lib/app, returns the second-level directory.
+        For other paths, returns the top-level directory or filename.
+
+        Examples:
+            'src/cli/main.py' -> 'cli'
+            'src/utils.py' -> 'utils.py'
+            'tests/test_main.py' -> 'tests'
+            'README.md' -> 'README.md'
+        """
         parts = Path(self.path).parts
+        if not parts:
+            return ''
+        # For src/lib/app structures, use the module name (second part)
         if len(parts) > 1 and parts[0] in ('src', 'lib', 'app'):
-            return parts[1] if len(parts) > 1 else parts[0]
-        return parts[0] if parts else ''
+            return parts[1]
+        return parts[0]
 
 
 @dataclass
