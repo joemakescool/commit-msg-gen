@@ -32,6 +32,9 @@ def clean_commit_message(text: str) -> str:
     if lines:
         lines[0] = lines[0].strip('`').strip()
 
+    # Normalize * bullets to - bullets (LLMs sometimes use markdown style)
+    lines = [re.sub(r'^(\s*)\* ', r'\1- ', line) for line in lines]
+
     return '\n'.join(lines)
 
 

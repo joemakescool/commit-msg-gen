@@ -105,9 +105,10 @@ Avoid:
 - Filler bullets that repeat the subject line in different words
 
 Scope selection (for type(scope): format):
+- ALWAYS include a scope in parentheses — e.g. feat(auth):, fix(api):, refactor(cli):
 - Use ONE WORD: module name (auth, api, cli), feature (login, checkout), or component (Button, config)
 - NEVER use file paths like 'cli/utils.py' or 'src/config' - just use 'cli' or 'config'
-- When changes span multiple areas, use the primary one or omit scope entirely"""
+- When changes span multiple areas, pick the primary one"""
 
     def _build_format_section(self, config: PromptConfig) -> str:
         max_len = config.max_subject_length

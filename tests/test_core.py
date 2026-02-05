@@ -408,6 +408,11 @@ class TestCleanCommitMessageEdgeCases:
         raw = "   \n\nfeat(cli): add flag"
         assert clean_commit_message(raw) == "feat(cli): add flag"
 
+    def test_normalizes_star_bullets_to_dashes(self):
+        raw = "feat(cli): add config\n\n* add pytest config\n* pin dependencies"
+        result = clean_commit_message(raw)
+        assert result == "feat(cli): add config\n\n- add pytest config\n- pin dependencies"
+
 
 # ---------------------------------------------------------------------------
 # FileChange dataclass
