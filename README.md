@@ -11,7 +11,11 @@
 ```
 $ git add .
 $ cm
-Analyzing 3 files... using Claude... done!
+Staged changes:
+  src/auth/tokens.py (+42 -8)
+  src/auth/cookies.py (+15 -3)
+  src/auth/tracking.py (+28 -0)
+Analyzing 3 files using Claude... done!
 
 ───────────────────────────────────────────────────────
 feat(auth): add JWT refresh token rotation
@@ -22,15 +26,21 @@ feat(auth): add JWT refresh token rotation
 ───────────────────────────────────────────────────────
 ✓ Copied to clipboard!
 
+(e)dit, (r)egenerate, or Enter to accept:
+
 $ git commit -m "<paste>"
 ```
 
 ## Why cm?
 
+`cm` does one thing: generate a commit message. It doesn't hook into git, manage workflows, or automate your commits. You stage changes, run `cm`, and paste the result. That's the whole design — stay out of the way and let you stay in control.
+
 - **Understands context** — Analyzes your actual diff, not just file names
 - **Conventional commits** — Proper `type(scope): subject` format out of the box
 - **Works offline** — Use Ollama for free, local generation
 - **Zero friction** — Copies to clipboard automatically
+- **Pipe-friendly** — Use in scripts: `cm | pbcopy`, `message=$(cm)`
+- **Refine interactively** — Edit, regenerate with hints, or accept in one step
 
 ## Quick Start
 
@@ -99,6 +109,20 @@ cm --no-copy                # Print only
 cm --verbose                # Show token usage and timing
 ```
 
+### After Generation
+
+After displaying the message, `cm` prompts you to refine it:
+
+- **Enter** — Accept the message (already on clipboard)
+- **`e`** — Open in your `$EDITOR` to tweak wording, then re-copies
+- **`r`** — Regenerate with an optional hint to steer the AI
+
+```
+(e)dit, (r)egenerate, or Enter to accept: r
+  Hint (Enter to skip): focus on the database migration
+Regenerating... done!
+```
+
 ### Guide the AI
 
 ```bash
@@ -125,6 +149,17 @@ cm --no-body                # Subject line only
 cm -p ollama                # Use local Ollama
 cm -p claude                # Use Claude API
 cm -m mistral:7b            # Specify model
+```
+
+### Scripting & Pipes
+
+When piped, `cm` outputs only the raw commit message to stdout — no colors, no prompts, no clipboard. Status messages go to stderr.
+
+```bash
+cm | pbcopy                     # macOS: pipe to clipboard
+cm | xclip -selection clipboard # Linux: pipe to clipboard
+cm | head -1                    # Get just the subject line
+message=$(cm)                   # Capture in a variable
 ```
 
 ### All Commands
@@ -283,6 +318,19 @@ src/
 └── prompts/             # Prompt construction
     └── builder.py       # Build context for LLM
 ```
+
+Each package owns one concern and exposes its API through `__init__.py`. The flow is a straight pipeline: **git** extracts the diff, **prompts** builds the LLM input, **llm** generates the message, **output** formats it, and **cli** orchestrates everything. No package imports from `cli` — dependencies only flow inward.
+
+The LLM layer uses the **Strategy pattern** — `LLMClient` is an abstract base class that defines the interface (`generate()`, `name`), and each provider (`ClaudeClient`, `OllamaClient`) implements it independently. A `PROVIDERS` registry and `get_client()` factory handle instantiation, so the rest of the codebase never knows which provider it's talking to. Adding a new provider means writing one class and adding one line to the registry.
+
+This follows **SOLID principles** throughout:
+- **Single Responsibility** — each package handles exactly one concern (git ops, prompt building, LLM communication, terminal output)
+- **Open/Closed** — new providers extend `LLMClient` without modifying existing code
+- **Liskov Substitution** — any `LLMClient` subclass works wherever the base class is expected
+- **Interface Segregation** — `LLMClient` exposes only `generate()` and `name`, nothing provider-specific leaks
+- **Dependency Inversion** — `cli/main.py` depends on the `LLMClient` abstraction, never on concrete providers
+
+The only external dependency is `anthropic` for the Claude client — git runs via `subprocess`, Ollama via `urllib`, and colors via raw ANSI codes. Configuration cascades from CLI args to environment variables to config file to defaults.
 
 </details>
 

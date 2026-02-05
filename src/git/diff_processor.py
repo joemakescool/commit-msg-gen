@@ -1,6 +1,6 @@
 """Diff Processor - Transform git diffs into LLM-friendly context."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 import re
 
@@ -25,6 +25,7 @@ class ProcessedDiff:
     included_files: int = 0
     filtered_files: int = 0
     truncated: bool = False
+    file_details: list[tuple[str, int, int]] = field(default_factory=list)
 
     @property
     def estimated_tokens(self) -> int:
@@ -86,6 +87,7 @@ class DiffProcessor:
 
         summary = self._build_summary(filtered, noise_count)
         detailed_diff, included_count, truncated = self._build_detailed_diff(filtered, changes.diff)
+        file_details = [(f.path, f.additions, f.deletions) for f, p in filtered]
 
         return ProcessedDiff(
             summary=summary,
@@ -93,7 +95,8 @@ class DiffProcessor:
             total_files=len(changes.files),
             included_files=included_count,
             filtered_files=noise_count,
-            truncated=truncated
+            truncated=truncated,
+            file_details=file_details,
         )
 
     def _classify_files(self, files: list[FileChange]) -> list[tuple[FileChange, Priority]]:

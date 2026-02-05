@@ -48,6 +48,21 @@ def _parse_choose_response(response_content):
     return cleaned_options if cleaned_options else [clean_commit_message(response_content.strip())]
 
 
+def _display_file_list(processed, max_shown=8):
+    """Show which files will be analyzed, collapsing long lists."""
+    if not processed.file_details:
+        return
+    print(bold("Staged changes:"))
+    shown = processed.file_details[:max_shown]
+    remaining = len(processed.file_details) - len(shown)
+    for path, additions, deletions in shown:
+        print(dim(f"  {path} (+{additions} -{deletions})"))
+    if remaining > 0:
+        print(dim(f"  ... and {remaining} more files"))
+    if processed.filtered_files > 0:
+        print(dim(f"  {processed.filtered_files} noise files filtered"))
+
+
 def _display_message(message):
     """Display commit message with horizontal rules and colored type."""
     colored = colorize_commit_type(message)
@@ -100,6 +115,9 @@ def main() -> int:
     if args.no_body:
         config.include_body = False
 
+    # Pipe mode: raw output to stdout, status to stderr
+    is_pipe = not sys.stdout.isatty()
+
     # Timing for verbose mode
     timings = {}
 
@@ -122,6 +140,10 @@ def main() -> int:
     processor = DiffProcessor()
     processed = processor.process(changes)
     timings['diff'] = time.time() - t0
+
+    # Show files being analyzed
+    if not is_pipe:
+        _display_file_list(processed)
 
     # Validate choose option count
     num_options = 1
@@ -146,20 +168,23 @@ def main() -> int:
     try:
         t0 = time.time()
         client = get_client(provider=provider, model=model)
-        print(f"Analyzing {bold(str(processed.total_files))} files using {info(client.name)}... ", end='', flush=True)
+        if not is_pipe:
+            print(f"Analyzing {bold(str(processed.total_files))} files using {info(client.name)}... ", end='', flush=True)
 
         if isinstance(client, OllamaClient) and not client._is_model_loaded():
-            print(dim("loading model... "), end='', flush=True)
+            if not is_pipe:
+                print(dim("loading model... "), end='', flush=True)
             t_warmup = time.time()
             client.warmup()
             timings['warmup'] = time.time() - t_warmup
     except LLMError as e:
-        print()
+        if not is_pipe:
+            print()
         print_error(str(e))
         return 1
 
     # Generation + display loop (supports regeneration)
-    is_interactive = sys.stdin.isatty()
+    is_interactive = sys.stdin.isatty() and not is_pipe
 
     while True:
         # Generate
@@ -167,12 +192,13 @@ def main() -> int:
             response = _generate_message(client, prompt, timings)
             timings['llm_total'] = time.time() - t0
         except LLMError as e:
-            print()
+            if not is_pipe:
+                print()
             print_error(str(e))
             return 1
 
         # Verbose output
-        if args.verbose:
+        if args.verbose and not is_pipe:
             print()
             print(dim(f"  Prompt: ~{len(prompt)//4} tokens ({len(prompt)} chars)"))
             print(dim(f"  Response: {response.tokens_used} tokens"))
@@ -184,20 +210,29 @@ def main() -> int:
         # Handle response
         if args.choose is not None:
             options = _parse_choose_response(response.content)
-            idx = display_options(options)
-            if idx is None:
-                print(dim("Cancelled."))
-                return 0
-            message = options[idx]
-            print(success("done!"))
+            if is_pipe:
+                message = options[0]
+            else:
+                idx = display_options(options)
+                if idx is None:
+                    print(dim("Cancelled."))
+                    return 0
+                message = options[idx]
+                print(success("done!"))
         else:
             message = clean_commit_message(response.content.strip())
-            print(success("done!"))
+            if not is_pipe:
+                print(success("done!"))
 
         # Append JIRA ticket if provided
         if args.jira:
             client.ticket_prefix = args.ticket_prefix or config.ticket_prefix
             message = f"{message}\n\n{client.format_ticket_reference(args.jira)}"
+
+        # Pipe mode: output raw message and exit
+        if is_pipe:
+            print(message)
+            return 0
 
         # Display and copy
         _display_message(message)
