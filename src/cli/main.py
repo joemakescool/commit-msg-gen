@@ -189,8 +189,9 @@ def _handle_response(args, response, is_pipe, client, config):
 
     # Append JIRA ticket if provided
     if args.jira:
-        client.ticket_prefix = args.ticket_prefix or config.ticket_prefix
-        message = f"{message}\n\n{client.format_ticket_reference(args.jira)}"
+        ticket_prefix = args.ticket_prefix or config.ticket_prefix
+        ticket_ref = f"{ticket_prefix}: {args.jira.upper()}"
+        message = f"{message}\n\n{ticket_ref}"
 
     return message, False, 0
 

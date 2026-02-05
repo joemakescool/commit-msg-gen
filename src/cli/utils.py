@@ -96,5 +96,6 @@ def edit_message(message: str) -> str | None:
     finally:
         try:
             os.unlink(tmp.name)
-        except OSError:
-            pass
+        except OSError as e:
+            # Log to stderr so temp files don't silently accumulate
+            print(f"Warning: Could not delete temp file {tmp.name}: {e}", file=sys.stderr)
