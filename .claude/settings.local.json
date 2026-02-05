@@ -18,7 +18,8 @@
       "Bash(where:*)",
       "Bash(pip show:*)",
       "Bash(dir:*)",
-      "Bash(del \"C:\\\\Users\\\\vanil\\\\bin\\\\cm.bat\")"
+      "Bash(del \"C:\\\\Users\\\\vanil\\\\bin\\\\cm.bat\")",
+      "Bash(wc:*)"
     ]
   }
 }

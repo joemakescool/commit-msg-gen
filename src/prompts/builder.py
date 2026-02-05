@@ -5,6 +5,57 @@ from dataclasses import dataclass
 from src.git import ProcessedDiff
 from src import COMMIT_TYPES
 
+# Bullet count thresholds by file count: (min_files, bullet_range)
+# Larger changes need more bullets to explain scope
+BULLET_THRESHOLDS_DETAILED = [
+    (15, "6-8"),  # 15+ files: large refactoring
+    (8, "5-6"),   # 8-14 files: medium change
+    (4, "4-5"),   # 4-7 files: small multi-file
+    (0, "2-3"),   # 1-3 files: focused change
+]
+
+BULLET_THRESHOLDS_DEFAULT = [
+    (15, "5-6"),
+    (8, "4-5"),
+    (4, "3-4"),
+    (0, "1-2"),
+]
+
+# File count size descriptors
+FILE_SIZE_THRESHOLDS = [
+    (15, "large"),
+    (4, ""),
+    (0, "small"),
+]
+
+# Example template components
+_SUBJECT_SIMPLE = "[subject: imperative verb + what changed]"
+_SUBJECT_TYPED = "type(scope): [imperative verb + what changed]"
+
+_BULLETS_SIMPLE = """\
+- [bullet: specific detail from the diff]
+- [bullet: another detail if needed]"""
+
+_BULLETS_CONVENTIONAL = """\
+- [bullet: specific detail from the diff]
+- [bullet: why or impact if relevant]"""
+
+_BULLETS_DETAILED = """\
+- [bullet: specific implementation detail]
+- [bullet: why this approach was chosen]
+- [bullet: what problem this solves]
+- [bullet: any notable side effects]"""
+
+# Lookup table: (style, include_body) -> (subject_template, body_template or None)
+EXAMPLE_TEMPLATES: dict[tuple[str, bool], tuple[str, str | None]] = {
+    ("simple", True): (_SUBJECT_SIMPLE, _BULLETS_SIMPLE),
+    ("simple", False): (_SUBJECT_SIMPLE, None),
+    ("detailed", True): (_SUBJECT_TYPED, _BULLETS_DETAILED),
+    ("detailed", False): (_SUBJECT_TYPED, _BULLETS_DETAILED),  # detailed always has body
+    ("conventional", True): (_SUBJECT_TYPED, _BULLETS_CONVENTIONAL),
+    ("conventional", False): (_SUBJECT_TYPED, None),
+}
+
 
 @dataclass
 class PromptConfig:
@@ -35,32 +86,28 @@ class PromptBuilder:
         return "\n\n".join(filter(None, sections))
 
     def _build_role_section(self) -> str:
-        return """You are a senior software engineer who has mass-reviewed thousands of pull requests and written commit messages for large open-source projects. You deeply understand that commit messages are documentation for future developers—often yourself, six months from now, wondering "why did we do this?"
+        return """You are an expert at writing git commit messages. Your commit messages are documentation for future developers.
 
-Your philosophy on commit messages:
+Core principles:
 - The DIFF shows WHAT changed. Your job is to explain WHY.
-- A good commit message saves 15 minutes of code archaeology later.
-- Write for the tired developer at 2am debugging a production issue.
-- Every word must earn its place. No filler, no fluff.
+- Write for the developer debugging this at 2am, six months from now.
+- Every word must earn its place—no filler.
 
 Your approach:
-1. First, identify the PRIMARY purpose of this change (there's usually one main thing)
-2. Determine the scope—what module, component, or area is affected
-3. Write a subject line that completes the sentence: "If applied, this commit will..."
-4. Add bullets that explain impact, reasoning, or non-obvious details
+1. Identify the PRIMARY purpose (commits should do one thing well)
+2. If the commit does multiple things, focus on the most significant change
+3. Write a subject that completes: "If applied, this commit will..."
+4. Add bullets only for non-obvious details, impact, or reasoning
 
-What you NEVER do:
-- Use vague verbs: "Update", "Change", "Modify", "Fix stuff" (be specific)
-- State the obvious: "Change X to Y" when the diff shows exactly that
-- Write bullets that just repeat the subject line in different words
-- Start bullets with "This commit..." (implied—it's a commit message)
-- Add filler bullets just to hit a count (quality over quantity)
+Avoid:
+- Vague verbs: "Update", "Change", "Modify" (be specific: "Add", "Remove", "Replace", "Extract")
+- Restating the diff: don't say "Change X to Y" when the code shows that
+- Filler bullets that repeat the subject line in different words
 
-The scope in type(scope) should be:
-- A module name: auth, api, db, ui
-- A feature area: login, checkout, search
-- A component: Button, UserService, config
-- Keep it short (1 word ideal, 2 max)"""
+Scope selection (for type(scope): format):
+- Use the most specific affected area: module name (auth, api), feature (login, checkout), or component (Button, config)
+- One word is ideal, two max
+- When changes span multiple areas, use the primary one or omit scope"""
 
     def _build_format_section(self, config: PromptConfig) -> str:
         max_len = config.max_subject_length
@@ -93,14 +140,12 @@ Write commit messages in this exact format:
 
     def _build_body_section(self, config: PromptConfig) -> str:
         fc = config.file_count
-
-        if config.style == "detailed":
-            bullets = self._get_bullet_range(fc, thresholds=[(15, "6-8"), (8, "5-6"), (4, "4-5"), (0, "2-3")])
-        else:
-            bullets = self._get_bullet_range(fc, thresholds=[(15, "5-6"), (8, "4-5"), (4, "3-4"), (0, "1-2")])
+        thresholds = BULLET_THRESHOLDS_DETAILED if config.style == "detailed" else BULLET_THRESHOLDS_DEFAULT
+        bullets = self._get_bullet_range(fc, thresholds)
 
         prefix = "REQUIRED: Write exactly" if fc >= 8 else "Write"
-        suffix = "for this large change" if fc >= 15 else "for this change" if fc >= 4 else "for this small change"
+        size = self._get_bullet_range(fc, FILE_SIZE_THRESHOLDS)
+        suffix = f"for this {size} change" if size else "for this change"
         bullet_instruction = f"{prefix} {bullets} bullets {suffix} ({fc} files)."
 
         return f"""
@@ -120,51 +165,19 @@ Each bullet should:
         return thresholds[-1][1]
 
     def _build_examples_section(self, config: PromptConfig) -> str:
-        # Use abstract format examples - no concrete content to copy
         warning = "CRITICAL: These show FORMAT only. Never use words from these examples. Analyze the ACTUAL diff below."
 
-        if config.style == "simple":
-            if config.include_body:
-                return f"""<format-examples>
+        key = (config.style, config.include_body)
+        subject, bullets = EXAMPLE_TEMPLATES.get(key, EXAMPLE_TEMPLATES[("conventional", True)])
+
+        example = subject
+        if bullets:
+            example += "\n\n" + bullets
+
+        return f"""<format-examples>
 {warning}
 
-[subject: imperative verb + what changed]
-
-- [bullet: specific detail from the diff]
-- [bullet: another detail if needed]
-</format-examples>"""
-            else:
-                return f"""<format-examples>
-{warning}
-
-[subject: imperative verb + what changed]
-</format-examples>"""
-        elif config.style == "detailed":
-            return f"""<format-examples>
-{warning}
-
-type(scope): [imperative verb + what changed]
-
-- [bullet: specific implementation detail]
-- [bullet: why this approach was chosen]
-- [bullet: what problem this solves]
-- [bullet: any notable side effects]
-</format-examples>"""
-        else:
-            if config.include_body:
-                return f"""<format-examples>
-{warning}
-
-type(scope): [imperative verb + what changed]
-
-- [bullet: specific detail from the diff]
-- [bullet: why or impact if relevant]
-</format-examples>"""
-            else:
-                return f"""<format-examples>
-{warning}
-
-type(scope): [imperative verb + what changed]
+{example}
 </format-examples>"""
 
     def _build_diff_section(self, diff: ProcessedDiff) -> str:
@@ -197,38 +210,60 @@ Use this to inform your message, but verify it matches what you see in the diff.
 
     def _build_analysis_section(self) -> str:
         return """<thinking>
-Before writing, mentally identify:
-1. What is the PRIMARY change? (there's usually one main thing)
-2. What type best fits? (feat/fix/refactor/etc.)
-3. What's the scope? (affected module/component)
-4. What's the key insight a future developer needs?
+Before writing, analyze:
+1. What is the PRIMARY change? Look for: new capability (feat), bug fix (fix), restructuring without behavior change (refactor), or other
+2. Is there user-visible impact? If yes, lean toward feat/fix. If purely internal, consider refactor/chore
+3. What scope is most affected? Pick the most specific area
+4. What would a future developer need to understand about WHY this change was made?
 
-DO NOT output this analysis. Use it internally, then output ONLY the commit message.
+Use this analysis internally, then output ONLY the commit message.
 </thinking>"""
 
     def _build_final_instructions(self, config: PromptConfig) -> str:
-        if config.style == "simple":
-            format_example = "Subject line here"
-        else:
-            format_example = "type(scope): subject line"
-
         if config.num_options > 1:
-            n = config.num_options
-            body_example = "\n\n- bullet explaining the change" if config.include_body else ""
+            return self._build_multi_option_instructions(config)
+        return self._build_single_option_instructions(config)
 
-            if n == 2:
-                approach_instructions = """Each option MUST take a meaningfully different approach:
+    def _get_format_example(self, config: PromptConfig) -> str:
+        """Return the format example string based on style."""
+        return "Subject line here" if config.style == "simple" else "type(scope): subject line"
+
+    def _get_approach_instructions(self, num_options: int) -> str:
+        """Return approach guidance based on number of options."""
+        if num_options == 2:
+            return """Each option MUST take a meaningfully different approach:
 - Option 1: Focus on the TECHNICAL change (what was done to the code)
 - Option 2: Focus on the USER/BUSINESS impact (why it matters)"""
-            else:
-                approach_instructions = "Each option MUST take a meaningfully different angle on the change."
+        return "Each option MUST take a meaningfully different angle on the change."
 
-            option_labels = "\n\n".join(
-                f"[Option {i}]\n{format_example}{body_example}" for i in range(1, n + 1)
-            )
-            label_list = ", ".join(f"[Option {i}]" for i in range(1, n + 1))
+    def _build_single_option_instructions(self, config: PromptConfig) -> str:
+        format_example = self._get_format_example(config)
+        body_rule = "- Include bullet points in the body" if config.include_body else "- Do NOT include a body, subject line only"
 
-            return f"""<instructions>
+        return f"""<instructions>
+Generate exactly ONE commit message.
+
+Rules:
+- Start directly with the {format_example} line
+- No markdown formatting (no ```, no bold)
+- No preamble like "Here's a commit message:"
+- No explanation after the message
+{body_rule}
+- Just the raw commit message, ready to use
+</instructions>"""
+
+    def _build_multi_option_instructions(self, config: PromptConfig) -> str:
+        n = config.num_options
+        format_example = self._get_format_example(config)
+        body_example = "\n\n- bullet explaining the change" if config.include_body else ""
+        approach_instructions = self._get_approach_instructions(n)
+
+        option_labels = "\n\n".join(
+            f"[Option {i}]\n{format_example}{body_example}" for i in range(1, n + 1)
+        )
+        label_list = ", ".join(f"[Option {i}]" for i in range(1, n + 1))
+
+        return f"""<instructions>
 Generate exactly {n} SEPARATE commit message options.
 
 {approach_instructions}
@@ -240,17 +275,4 @@ Format exactly like this:
 IMPORTANT:
 - Include ALL {label_list} labels exactly as shown
 - No markdown, no extra explanation, no preamble
-</instructions>"""
-        else:
-            body_rule = "- Include bullet points in the body" if config.include_body else "- Do NOT include a body, subject line only"
-            return f"""<instructions>
-Generate exactly ONE commit message.
-
-Rules:
-- Start directly with the {format_example} line
-- No markdown formatting (no ```, no bold)
-- No preamble like "Here's a commit message:"
-- No explanation after the message
-{body_rule}
-- Just the raw commit message, ready to use
 </instructions>"""
