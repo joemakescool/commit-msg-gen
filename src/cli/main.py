@@ -28,17 +28,26 @@ def _generate_message(client, prompt, timings):
 
 def _parse_choose_response(response_content):
     """Parse multi-option response into cleaned options list."""
-    parts = re.split(r'\[Option \d+\]\s*', response_content)
+    # Remove common LLM preambles and option markers
+    content = response_content.strip()
+    # Remove markdown option markers like **Option 1**, **Option 2**
+    content = re.sub(r'\*\*Option \d+\*\*\s*', '', content)
+    # Remove bracketed option markers like [Option 1], [Option 2]
+    content = re.sub(r'\[Option \d+\]\s*', '', content)
+
+    # Split by commit type pattern (each option starts with a type)
+    type_pattern = rf'(?:^|\n)(?=(?:{TYPES_PATTERN})[\(!:])'
+    parts = re.split(type_pattern, content)
     options = [p.strip() for p in parts if p.strip()]
 
-    if len(options) <= 1:
-        type_pattern = rf'\n(?=\[?(?:{TYPES_PATTERN})[\(!:])'
-        parts = re.split(type_pattern, response_content.strip())
-        options = [p.strip() for p in parts if p.strip()]
+    # Filter out preamble (anything that doesn't start with a commit type)
+    commit_start = re.compile(rf'^({TYPES_PATTERN})[\(!:]')
+    options = [opt for opt in options if commit_start.match(opt)]
 
     cleaned_options = []
     for opt in options:
         opt = clean_commit_message(opt)
+        # Remove any leading bracket from type
         opt = re.sub(rf'^\[?({TYPES_PATTERN})\(', r'\1(', opt)
         lines = opt.split('\n')
         if lines[0].endswith(']'):

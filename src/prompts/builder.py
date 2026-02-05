@@ -105,19 +105,19 @@ Avoid:
 - Filler bullets that repeat the subject line in different words
 
 Scope selection (for type(scope): format):
-- Use the most specific affected area: module name (auth, api), feature (login, checkout), or component (Button, config)
-- One word is ideal, two max
-- When changes span multiple areas, use the primary one or omit scope"""
+- Use ONE WORD: module name (auth, api, cli), feature (login, checkout), or component (Button, config)
+- NEVER use file paths like 'cli/utils.py' or 'src/config' - just use 'cli' or 'config'
+- When changes span multiple areas, use the primary one or omit scope entirely"""
 
     def _build_format_section(self, config: PromptConfig) -> str:
         max_len = config.max_subject_length
         is_simple = config.style == "simple"
 
         if is_simple:
-            format_desc = f"subject line (imperative mood, max {max_len} chars)"
+            format_desc = f"subject line (lowercase, imperative mood, max {max_len} chars)"
             type_instruction = "\nUse a simple, direct subject line without type prefixes."
         else:
-            format_desc = f"type(scope): subject line (imperative mood, max {max_len} chars)"
+            format_desc = f"type(scope): subject line (lowercase, imperative mood, max {max_len} chars)"
             type_instruction = self._build_type_instruction(config.forced_type)
 
         body_section = self._build_body_section(config) if config.include_body else \
