@@ -10,7 +10,6 @@ class ClaudeClient(LLMClient):
 
     DEFAULT_MODEL = "claude-opus-4-7"
     MAX_TOKENS = 1000
-    TEMPERATURE = 0.4
     MAX_RETRIES = 2
 
     def __init__(self, api_key: str | None = None, model: str | None = None):
@@ -49,7 +48,6 @@ class ClaudeClient(LLMClient):
                 response = self._client.messages.create(
                     model=self.model,
                     max_tokens=self.MAX_TOKENS,
-                    temperature=self.TEMPERATURE,
                     system=SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": retry_prompt}]
                 )
