@@ -119,13 +119,15 @@ def _handle_subcommands(args):
 
 
 def _get_provider_and_model(args, config):
-    """Resolve provider and model from args, env, or config.
+    """Resolve provider, model, and api_key from args, env, or config.
 
-    Precedence: CLI args > environment variables > config file
+    Precedence: CLI args > environment variables > config file.
+    api_key uses env > config (no CLI flag exists).
     """
     provider = args.provider or os.environ.get('CM_PROVIDER') or config.provider
     model = args.model or os.environ.get('CM_MODEL') or config.model
-    return provider, model
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or config.api_key
+    return provider, model, api_key
 
 
 def _prepare_staged_changes(is_pipe):
@@ -151,14 +153,14 @@ def _prepare_staged_changes(is_pipe):
     return changes, timings
 
 
-def _initialize_client(provider, model, processed, is_pipe, timings):
+def _initialize_client(provider, model, api_key, processed, is_pipe, timings):
     """Initialize LLM client with optional warmup for Ollama.
 
     Returns:
         tuple: (client, t0) where t0 is the start time for total LLM timing
     """
     t0 = time.time()
-    client = get_client(provider=provider, model=model)
+    client = get_client(provider=provider, model=model, api_key=api_key)
     if not is_pipe:
         print(f"Analyzing {bold(str(processed.total_files))} files using {info(client.name)}... ", end='', flush=True)
 
@@ -248,7 +250,7 @@ def _handle_interactive_action(args, message, prompt_config, processed):
     return 'done', message, None
 
 
-def _generate_commit_flow(args, config, provider, model):
+def _generate_commit_flow(args, config, provider, model, api_key):
     """Main commit message generation flow.
 
     Returns:
@@ -292,7 +294,7 @@ def _generate_commit_flow(args, config, provider, model):
 
     # Initialize LLM client
     try:
-        client, t0 = _initialize_client(provider, model, processed, is_pipe, timings)
+        client, t0 = _initialize_client(provider, model, api_key, processed, is_pipe, timings)
     except LLMError as e:
         if not is_pipe:
             print()
@@ -354,9 +356,9 @@ def main() -> int:
     if should_exit:
         return exit_code
 
-    # Load config and resolve provider/model
+    # Load config and resolve provider/model/api_key
     config = load_config()
-    provider, model = _get_provider_and_model(args, config)
+    provider, model, api_key = _get_provider_and_model(args, config)
 
     # Handle warmup subcommand (needs provider/model)
     if args.warmup:
@@ -369,4 +371,4 @@ def main() -> int:
         config.include_body = False
 
     # Run main generation flow
-    return _generate_commit_flow(args, config, provider, model)
+    return _generate_commit_flow(args, config, provider, model, api_key)

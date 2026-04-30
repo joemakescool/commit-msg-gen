@@ -16,6 +16,7 @@ class Config:
     """User configuration with sensible defaults."""
     provider: str = "auto"
     model: Optional[str] = None
+    api_key: Optional[str] = None
     style: str = "conventional"
     include_body: bool = True
     max_subject_length: int = 72

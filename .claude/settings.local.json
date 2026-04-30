@@ -19,7 +19,9 @@
       "Bash(pip show:*)",
       "Bash(dir:*)",
       "Bash(del \"C:\\\\Users\\\\vanil\\\\bin\\\\cm.bat\")",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Read(//c/Users/jbarker1/**)"
     ]
   }
 }

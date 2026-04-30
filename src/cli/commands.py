@@ -9,6 +9,16 @@ from src.llm import get_client, OllamaClient
 from src.output import bold, dim, info, print_success, print_error
 
 
+def _format_api_key_status(config) -> str:
+    """Render api_key status without exposing the secret."""
+    if config.api_key:
+        suffix = config.api_key[-4:] if len(config.api_key) >= 4 else "****"
+        return f"configured (...{suffix}, ~/.cmrc)"
+    if os.environ.get('ANTHROPIC_API_KEY'):
+        return "configured (ANTHROPIC_API_KEY env var)"
+    return "not set"
+
+
 def display_config() -> int:
     """Display current configuration."""
     config = load_config()
@@ -34,6 +44,7 @@ def display_config() -> int:
     print(f"  {bold('Settings:')}")
     print(f"    provider:          {info(config.provider)}")
     print(f"    model:             {info(config.model or 'auto')}")
+    print(f"    api_key:           {info(_format_api_key_status(config))}")
     print(f"    style:             {info(config.style)}")
     print(f"    include_body:      {info(str(config.include_body).lower())}")
     print(f"    max_subject_length: {info(str(config.max_subject_length))}")
@@ -66,6 +77,7 @@ def run_setup() -> int:
             break
 
     model = None
+    api_key = None
     if provider == 'ollama':
         print(f"\nRecommended models (7B+ for best results):")
         print(f"  - mistral:7b      (fast, good quality)")
@@ -73,6 +85,37 @@ def run_setup() -> int:
         print(f"  - gemma2:9b       (detailed, slower)")
         print(f"\nNote: 3B models often hallucinate. Use 7B+ for reliable results.\n")
         model = input("Model (Enter for mistral:7b): ").strip() or "mistral:7b"
+    elif provider == 'claude':
+        print(f"\n{bold('API key')}")
+        print(dim("  Get one at https://console.anthropic.com/"))
+        env_key = os.environ.get('ANTHROPIC_API_KEY')
+        if env_key:
+            print(f"  {dim('ANTHROPIC_API_KEY is already set in your environment.')}")
+            entered = input("Paste a key to override, or press Enter to keep using the env var: ").strip()
+            api_key = entered or None
+        else:
+            entered = input("Paste your API key (starts with sk-ant-): ").strip()
+            api_key = entered or None
+            if not api_key:
+                print(dim("  No key provided. Set ANTHROPIC_API_KEY in your shell before running cm."))
+
+        print(f"\n{bold('Claude model')}")
+        print(f"  1. claude-opus-4-7      (sharpest, best for multi-file commits)")
+        print(f"  2. claude-sonnet-4-6    (balanced speed and quality)")
+        print(f"  3. claude-haiku-4-5     (fastest, cheapest)\n")
+        claude_models = {
+            '1': 'claude-opus-4-7',
+            '2': 'claude-sonnet-4-6',
+            '3': 'claude-haiku-4-5',
+        }
+        while True:
+            choice = input("Select [1/2/3] (Enter for opus): ").strip()
+            if choice == '':
+                model = 'claude-opus-4-7'
+                break
+            if choice in claude_models:
+                model = claude_models[choice]
+                break
 
     print("\nCommit message style:\n")
     print("  1. conventional - type(scope): subject with bullets (default)")
@@ -106,6 +149,7 @@ def run_setup() -> int:
     config = Config(
         provider=provider,
         model=model,
+        api_key=api_key,
         style=style,
         include_body=include_body,
         max_subject_length=max_subject_length,

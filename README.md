@@ -45,11 +45,10 @@ $ git commit -m "<paste>"
 ## Quick Start
 
 ```bash
-# Install (recommended)
-pipx install git+https://github.com/joemakescool/commit-msg-gen.git
-
-# Or with pip
-pip install git+https://github.com/joemakescool/commit-msg-gen.git
+# Install from a local clone (most reliable on Windows)
+git clone https://github.com/joemakescool/commit-msg-gen.git
+cd commit-msg-gen
+python -m pip install -e .
 
 # Use
 git add .
@@ -61,13 +60,27 @@ That's it. Works immediately with [Ollama](https://ollama.ai) if you have it run
 
 ## Installation
 
+### From a local clone (recommended for Windows / developing)
+
 ```bash
-# Recommended: pipx keeps CLI tools isolated
+git clone https://github.com/joemakescool/commit-msg-gen.git
+cd commit-msg-gen
+python -m pip install -e .
+```
+
+The `-e` flag makes it editable — code changes are picked up without reinstalling.
+
+### Direct from GitHub
+
+```bash
+# With pipx (isolates CLI tools — install pipx first if needed)
 pipx install git+https://github.com/joemakescool/commit-msg-gen.git
 
-# Or with pip
-pip install git+https://github.com/joemakescool/commit-msg-gen.git
+# Or via Python's pip module (works even if `pip` isn't on PATH)
+python -m pip install git+https://github.com/joemakescool/commit-msg-gen.git
 ```
+
+> **Why `python -m pip` instead of `pip`?** On Windows (especially PowerShell), bare `pip` and `pipx` often aren't on the PATH, but `python` is. `python -m pip` always uses the pip that ships with the active Python interpreter.
 
 <details>
 <summary><strong>Windows PATH issues?</strong></summary>
@@ -285,7 +298,8 @@ $env:ANTHROPIC_API_KEY = "sk-ant-..."   # PowerShell
 
 | Problem | Solution |
 |---------|----------|
-| `cm` not recognized | Re-run `pip install .` or restart terminal |
+| `cm` not recognized | Re-run `python -m pip install -e .` or restart terminal |
+| `pip` / `pipx` not recognized (Windows) | Use `python -m pip install -e .` instead |
 | "Ollama not running" | Run `ollama serve` in another terminal |
 | "Model not found" | Run `ollama pull <model-name>` |
 | "No staged changes" | Run `git add .` first |

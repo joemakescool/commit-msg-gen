@@ -12,14 +12,18 @@ PROVIDERS = {
 AUTO_DETECT_ORDER = [OllamaClient, ClaudeClient]
 
 
-def get_client(provider: str = "auto", model: str | None = None) -> LLMClient:
+def get_client(provider: str = "auto", model: str | None = None, api_key: str | None = None) -> LLMClient:
     """Get an LLM client. Provider can be 'claude', 'ollama', or 'auto'."""
-    if provider in PROVIDERS:
-        return PROVIDERS[provider](model=model)
+    if provider == "claude":
+        return ClaudeClient(model=model, api_key=api_key)
+    if provider == "ollama":
+        return OllamaClient(model=model)
 
     if provider == "auto":
         for client_class in AUTO_DETECT_ORDER:
             try:
+                if client_class is ClaudeClient:
+                    return client_class(model=model, api_key=api_key)
                 return client_class(model=model)
             except LLMError:
                 continue
@@ -31,6 +35,7 @@ def get_client(provider: str = "auto", model: str | None = None) -> LLMClient:
             "  2. Start: ollama serve\n"
             "  3. Pull: ollama pull llama3.2:3b\n\n"
             "Option 2 - Use Claude API:\n"
+            "  Run 'cm --setup' and choose Claude, or\n"
             "  export ANTHROPIC_API_KEY='your-key-here'"
         )
 

@@ -36,7 +36,7 @@ class ProcessedDiff:
 @dataclass
 class ProcessorConfig:
     """Tunable settings for diff processing."""
-    max_tokens: int = 3000
+    max_tokens: int = 10000
     max_lines_per_file: int = 200
     large_file_threshold: int = 100
 

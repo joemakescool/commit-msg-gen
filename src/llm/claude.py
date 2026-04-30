@@ -8,7 +8,7 @@ from src.llm.base import LLMClient, LLMResponse, LLMError, SYSTEM_PROMPT, valida
 class ClaudeClient(LLMClient):
     """Claude API client. Requires ANTHROPIC_API_KEY env var."""
 
-    DEFAULT_MODEL = "claude-sonnet-4-20250514"
+    DEFAULT_MODEL = "claude-opus-4-7"
     MAX_TOKENS = 1000
     TEMPERATURE = 0.4
     MAX_RETRIES = 2
